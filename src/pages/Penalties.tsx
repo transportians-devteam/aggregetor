@@ -1,97 +1,182 @@
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { AlertTriangle, CreditCard, Eye, Filter, Download } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, CreditCard, Loader2, Send } from "lucide-react";
+import { toast } from "sonner";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  appealEnforcement,
+  listEnforcementCases,
+  submitComplianceResponse,
+} from "@/services/enforcementService";
+import { payPenalty } from "@/services/walletService";
+import { getErrorMessage } from "@/services/api";
 
-const penalties = [
-  { id: 'P-2026-001', code: 'P001', desc: 'EV ratio non-compliance (Q1 2026)', type: 'monetary', amount: 50000, severity: 'major', status: 'pending', due: '2026-04-15' },
-  { id: 'P-2026-002', code: 'P003', desc: 'Insurance lapse — 3 vehicles', type: 'monetary', amount: 15000, severity: 'minor', status: 'paid', due: '2026-03-01' },
-  { id: 'P-2025-014', code: 'P002', desc: 'Late fortnightly declaration (Dec 2025)', type: 'monetary', amount: 10000, severity: 'minor', status: 'paid', due: '2026-01-15' },
-  { id: 'P-2026-003', code: 'W001', desc: 'Warning: EV ratio approaching threshold', type: 'non_monetary', amount: 0, severity: 'warning', status: 'active', due: '-' },
-  { id: 'P-2026-004', code: 'P004', desc: 'PUCC lapse — 5 vehicles', type: 'monetary', amount: 10000, severity: 'minor', status: 'pending', due: '2026-04-30' },
-];
-
-const severityColor: Record<string, string> = {
-  warning: 'bg-amber-100 text-amber-700',
-  minor: 'bg-blue-100 text-blue-700',
-  major: 'bg-red-100 text-red-700',
-  critical: 'bg-red-200 text-red-800',
-};
-
-const statusColor: Record<string, string> = {
-  pending: 'bg-amber-100 text-amber-700',
-  paid: 'bg-green-100 text-green-700',
-  active: 'bg-blue-100 text-blue-700',
-  appealed: 'bg-purple-100 text-purple-700',
-};
+const money = (value = 0) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(
+    value,
+  );
 
 export default function Penalties() {
-  const totalPending = penalties.filter(p => p.status === 'pending').reduce((s, p) => s + p.amount, 0);
+  const client = useQueryClient();
+  const [text, setText] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
+  const cases = useQuery({
+    queryKey: ["enforcementCases"],
+    queryFn: listEnforcementCases,
+  });
+  const refresh = () => {
+    client.invalidateQueries({ queryKey: ["enforcementCases"] });
+    client.invalidateQueries({ queryKey: ["wallet"] });
+    client.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+  const pay = useMutation({
+    mutationFn: payPenalty,
+    onSuccess: () => {
+      refresh();
+      toast.success("Penalty paid");
+    },
+    onError: (e) => setError(getErrorMessage(e)),
+  });
+  const respond = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      submitComplianceResponse(id, reason),
+    onSuccess: refresh,
+    onError: (e) => setError(getErrorMessage(e)),
+  });
+  const appeal = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      appealEnforcement(id, reason),
+    onSuccess: refresh,
+    onError: (e) => setError(getErrorMessage(e)),
+  });
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-heading font-bold text-foreground">My Penalties</h1>
-            <p className="text-sm text-muted-foreground mt-1">View violations and manage payments</p>
+      <div className="mb-6">
+        <h1 className="font-heading text-2xl font-bold">
+          Penalties and enforcement
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Pay monetary penalties, respond to notices and lodge permitted appeals
+        </p>
+      </div>
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
+      <div className="space-y-4">
+        {cases.data?.map((item) => (
+          <article key={item.id} className="glass border rounded-xl p-5">
+            <div className="flex gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+              <div className="flex-1">
+                <div className="flex flex-wrap justify-between gap-2">
+                  <div>
+                    <h2 className="font-semibold">
+                      {item.caseNumber} · {item.violationCode}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {item.description}
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold px-2 py-1 rounded bg-muted h-fit">
+                    {item.status.replaceAll("_", " ")}
+                  </span>
+                </div>
+                {item.penalty && (
+                  <div className="mt-4 rounded-lg border p-4">
+                    <div className="flex justify-between">
+                      <strong>{item.penalty.type.replaceAll("_", " ")}</strong>
+                      <span>
+                        {item.penalty.amount
+                          ? money(item.penalty.amount)
+                          : item.penalty.instruction}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Due {item.penalty.dueDate} · {item.penalty.status}
+                    </p>
+                    {item.penalty.type === "MONETARY" &&
+                      item.penalty.status === "ISSUED" && (
+                        <Button
+                          size="sm"
+                          className="mt-3"
+                          onClick={() => pay.mutate(item.penalty!.id)}
+                        >
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Pay from wallet
+                        </Button>
+                      )}
+                    {item.penalty.type === "NON_MONETARY" &&
+                      item.penalty.status === "ISSUED" && (
+                        <div className="flex gap-2 mt-3">
+                          <Input
+                            placeholder="Compliance response"
+                            value={text[item.id] ?? ""}
+                            onChange={(e) =>
+                              setText((current) => ({
+                                ...current,
+                                [item.id]: e.target.value,
+                              }))
+                            }
+                          />
+                          <Button
+                            onClick={() =>
+                              respond.mutate({
+                                id: item.id,
+                                reason: text[item.id],
+                              })
+                            }
+                            disabled={!text[item.id]}
+                          >
+                            <Send className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                  </div>
+                )}
+                {["SUSPENDED", "CANCELLED"].includes(item.status) &&
+                  !item.appeal && (
+                    <div className="flex gap-2 mt-3">
+                      <Input
+                        placeholder="Appeal grounds"
+                        value={text[item.id] ?? ""}
+                        onChange={(e) =>
+                          setText((current) => ({
+                            ...current,
+                            [item.id]: e.target.value,
+                          }))
+                        }
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          appeal.mutate({ id: item.id, reason: text[item.id] })
+                        }
+                        disabled={!text[item.id]}
+                      >
+                        Submit appeal
+                      </Button>
+                    </div>
+                  )}
+                {item.appeal && (
+                  <p className="mt-3 text-sm">
+                    Appeal: <strong>{item.appeal.status}</strong>
+                    {item.appeal.decisionReason &&
+                      ` · ${item.appeal.decisionReason}`}
+                  </p>
+                )}
+              </div>
+            </div>
+          </article>
+        ))}
+        {(pay.isPending || respond.isPending || appeal.isPending) && (
+          <Loader2 className="animate-spin" />
+        )}
+        {!cases.isLoading && !cases.data?.length && (
+          <div className="glass border rounded-xl p-10 text-center text-muted-foreground">
+            No enforcement cases.
           </div>
-          <Button variant="outline" size="sm"><Download className="w-4 h-4 mr-2" />Export</Button>
-        </div>
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="glass rounded-xl p-5 border border-border">
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1">Total Pending</p>
-            <p className="text-2xl font-heading font-bold text-destructive">₹{totalPending.toLocaleString()}</p>
-          </div>
-          <div className="glass rounded-xl p-5 border border-border">
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1">Total Paid (All Time)</p>
-            <p className="text-2xl font-heading font-bold text-green-600">₹25,000</p>
-          </div>
-          <div className="glass rounded-xl p-5 border border-border">
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1">Active Warnings</p>
-            <p className="text-2xl font-heading font-bold text-amber-600">1</p>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="glass rounded-xl overflow-hidden border border-border">
-          <div className="p-4 border-b border-border bg-muted/50 flex items-center justify-between">
-            <h3 className="font-heading font-semibold text-sm">All Penalties & Warnings</h3>
-            <Button variant="ghost" size="sm"><Filter className="w-4 h-4 mr-2" />Filter</Button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-border bg-muted/30">
-                <th className="text-left p-3 font-medium text-muted-foreground">ID</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Description</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Type</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Amount</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Severity</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Status</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Due Date</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Action</th>
-              </tr></thead>
-              <tbody>
-                {penalties.map(p => (
-                  <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/20">
-                    <td className="p-3 font-mono text-xs">{p.id}</td>
-                    <td className="p-3 font-medium max-w-[250px]">{p.desc}</td>
-                    <td className="p-3 capitalize">{p.type.replace('_', '-')}</td>
-                    <td className="p-3 font-semibold">{p.amount > 0 ? `₹${p.amount.toLocaleString()}` : '—'}</td>
-                    <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${severityColor[p.severity]}`}>{p.severity}</span></td>
-                    <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${statusColor[p.status]}`}>{p.status}</span></td>
-                    <td className="p-3 text-muted-foreground">{p.due}</td>
-                    <td className="p-3">
-                      {p.status === 'pending' && <Button size="sm" className="h-7 text-xs"><CreditCard className="w-3 h-3 mr-1" />Pay via Wallet</Button>}
-                      {p.status === 'paid' && <Button variant="ghost" size="sm" className="h-7 text-xs"><Eye className="w-3 h-3 mr-1" />Receipt</Button>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        )}
       </div>
     </DashboardLayout>
   );

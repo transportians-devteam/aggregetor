@@ -1,121 +1,41 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import {
-  LayoutDashboard, Car, Leaf, Wallet, MessageSquare,
-  ShieldCheck, Users, LogOut, Zap, ChevronLeft, ChevronRight,
-  UserPlus, UserMinus, AlertTriangle, Clock, User, HelpCircle, Lock
-} from 'lucide-react';
+import { AlertTriangle, BarChart3, Bell, Car, ChevronLeft, ChevronRight, CircleHelp, Clock, FileCheck, FileText, Gauge, Leaf, LogOut, Settings2, ShieldCheck, User, UserMinus, UserPlus, Wallet, Zap } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
-const aggregatorNav = [
-  { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { label: 'My Fleet', icon: Car, path: '/fleet' },
-  { label: 'Onboarding', icon: UserPlus, path: '/onboarding' },
-  { label: 'Offboarding', icon: UserMinus, path: '/offboarding' },
-  { label: 'EV Compliance', icon: Leaf, path: '/ev-compliance' },
-  { label: 'My Penalties', icon: AlertTriangle, path: '/penalties' },
-  { label: 'History', icon: Clock, path: '/history' },
-  { label: 'Fee & Wallet', icon: Wallet, path: '/wallet' },
-  { label: 'My Profile', icon: User, path: '/profile' },
-  { label: 'Grievance Centre', icon: MessageSquare, path: '/grievances' },
-  { label: 'Help', icon: HelpCircle, path: '/help' },
-  { label: 'Change Password', icon: Lock, path: '/change-password' },
-];
+const operatorNav = [
+  ['Dashboard', Gauge, '/dashboard'], ['My Fleet', Car, '/fleet'], ['Onboarding', UserPlus, '/onboarding'],
+  ['Applications', FileText, '/applications'], ['Reports', BarChart3, '/reports'],
+  ['System Offboarding', UserMinus, '/offboarding'], ['Compliance', Leaf, '/ev-compliance'],
+  ['Penalties', AlertTriangle, '/penalties'], ['Activity', Clock, '/history'], ['Wallet', Wallet, '/wallet'],
+  ['Notifications', Bell, '/notifications'], ['My Profile', User, '/profile'], ['Help', CircleHelp, '/help'],
+] as const;
+const authorityNav = [
+  ['Authority Dashboard', Gauge, '/admin'], ['Applications', FileCheck, '/admin/applications'],
+  ['Compliance', ShieldCheck, '/admin/compliance'], ['Enforcement', AlertTriangle, '/admin/enforcement'],
+  ['Government MIS', Car, '/admin/mis'], ['Notifications', Bell, '/notifications'], ['My Profile', User, '/profile'],
+  ['Portal Content', Settings2, '/admin/content'],
+] as const;
 
-const officerNav = [
-  { label: 'Admin Dashboard', icon: LayoutDashboard, path: '/admin' },
-  { label: 'Aggregators & DSPs', icon: ShieldCheck, path: '/admin/aggregators' },
-  { label: 'License Applications', icon: Users, path: '/admin/applications' },
-  { label: 'Fleet Verification', icon: Car, path: '/admin/fleet-verify' },
-  { label: 'EV Compliance', icon: Leaf, path: '/admin/ev-monitor' },
-  { label: 'Penalties & Actions', icon: AlertTriangle, path: '/admin/penalties' },
-  { label: 'Grievance Review', icon: MessageSquare, path: '/admin/grievances' },
-];
-
-const enforcementNav = [
-  { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { label: 'Fleet Verification', icon: Car, path: '/fleet' },
-  { label: 'Compliance Check', icon: ShieldCheck, path: '/ev-compliance' },
-];
-
-export function AppSidebar() {
+export function AppSidebar({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate?: () => void }) {
   const { auth, logout } = useAuth();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
-
-  const navItems = auth.role === 'officer' ? officerNav
-    : auth.role === 'enforcement' ? enforcementNav
-    : aggregatorNav;
-
-  return (
-    <aside className={cn(
-      "flex flex-col bg-sidebar text-sidebar-foreground transition-all duration-300 min-h-screen relative",
-      collapsed ? "w-16" : "w-64"
-    )}>
-      {/* Header */}
-      <div className="p-4 border-b border-sidebar-border">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center flex-shrink-0">
-            <Zap className="w-5 h-5 text-sidebar-primary-foreground" />
-          </div>
-          {!collapsed && (
-            <div>
-              <p className="font-heading font-bold text-sm text-sidebar-accent-foreground">GACP</p>
-              <p className="text-[10px] text-sidebar-foreground/60 leading-tight">Transport Dept · NCT Delhi</p>
-            </div>
-          )}
-        </Link>
-      </div>
-
-      {/* Nav */}
-      <nav className="flex-1 py-4 px-2 space-y-1">
-        {navItems.map((item) => {
-          const active = item.path === '/admin'
-            ? location.pathname === '/admin'
-            : location.pathname.startsWith(item.path);
-          return (
-            <Link
-              key={item.label}
-              to={item.path}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all",
-                active
-                  ? "bg-sidebar-accent text-sidebar-primary font-semibold"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
-              )}
-            >
-              <item.icon className="w-4 h-4 flex-shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* User & logout */}
-      <div className="p-4 border-t border-sidebar-border">
-        {!collapsed && auth.user && (
-          <div className="mb-3">
-            <p className="text-xs font-medium text-sidebar-accent-foreground">{auth.user.name}</p>
-            <p className="text-[10px] text-sidebar-foreground/50">{auth.user.company || auth.user.designation}</p>
-          </div>
-        )}
-        <button
-          onClick={logout}
-          className="flex items-center gap-2 text-xs text-sidebar-foreground/50 hover:text-destructive transition-colors w-full"
-        >
-          <LogOut className="w-4 h-4" />
-          {!collapsed && 'Sign Out'}
-        </button>
-      </div>
-
-      {/* Collapse toggle */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-sidebar border border-sidebar-border flex items-center justify-center text-sidebar-foreground/50 hover:text-sidebar-primary transition-colors"
-      >
-        {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
-      </button>
-    </aside>
-  );
+  const isOperator = auth.role === 'aggregator' || auth.role === 'dsp';
+  const items = (isOperator ? operatorNav : authorityNav).filter(([label]) => {
+    if (label === 'Applications') return auth.role !== 'enforcement';
+    if (label === 'Compliance') return auth.role !== 'appellate_officer';
+    if (label === 'Enforcement') return auth.role !== 'officer';
+    if (label === 'Government MIS') return auth.role !== 'appellate_officer';
+    if (label === 'Portal Content') return auth.role === 'admin';
+    return true;
+  });
+  const compact = !mobile && collapsed;
+  return <aside className={cn('relative flex h-full min-h-dvh flex-col overflow-y-auto bg-sidebar text-sidebar-foreground transition-all', compact ? 'w-16' : mobile ? 'w-[86vw] max-w-72' : 'w-72 md:w-64')}>
+    <div className="border-b border-sidebar-border p-4"><Link onClick={onNavigate} to={isOperator ? '/dashboard' : '/admin'} className="flex items-center gap-2"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary"><Zap className="h-5 w-5 text-sidebar-primary-foreground" /></span>{!compact && <span className="min-w-0"><b className="block text-sm">GACP</b><small className="block truncate text-sidebar-foreground/60">Transport Dept · NCT Delhi</small></span>}</Link></div>
+    <nav className="flex-1 space-y-1 px-2 py-4">{items.map(([label, Icon, path]) => <Link onClick={onNavigate} key={path} to={path} className={cn('flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm', location.pathname === path ? 'bg-sidebar-accent font-semibold text-sidebar-primary' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50')}><Icon className="h-4 w-4 shrink-0" />{!compact && label}</Link>)}</nav>
+    <div className="border-t border-sidebar-border p-4">{!compact && <div className="mb-3 min-w-0"><p className="truncate text-xs font-medium">{auth.user?.name}</p><p className="truncate text-[10px] capitalize text-sidebar-foreground/50">{auth.role?.replaceAll('_', ' ')}</p></div>}<button onClick={() => void logout()} className="flex w-full items-center gap-2 text-xs text-sidebar-foreground/60 hover:text-destructive"><LogOut className="h-4 w-4" />{!compact && 'Sign out'}</button></div>
+    {!mobile && <button aria-label="Toggle sidebar" onClick={() => setCollapsed(value => !value)} className="absolute -right-3 top-20 flex h-6 w-6 items-center justify-center rounded-full border bg-sidebar">{collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}</button>}
+  </aside>;
 }

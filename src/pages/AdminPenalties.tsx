@@ -1,141 +1,477 @@
-import { useState } from 'react';
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { mockPenalties, mockCompanies, formatINR, type PenaltyRecord } from '@/lib/mockData';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { AlertTriangle, BanknoteIcon, ShieldOff, Plus, Search, X, DollarSign, Scale } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { FormEvent, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  enforcementStatusMessage,
+  getAuthorityEnforcementActions,
+} from "@/lib/enforcementWorkflow";
+import {
+  cancelLicense,
+  decideEnforcementAppeal,
+  extendSuspension,
+  issuePenalty,
+  listEnforcementCases,
+  openCase,
+  reviewComplianceResponse,
+  startEnforcementAppeal,
+  suspendLicense,
+  type EnforcementCase,
+} from "@/services/enforcementService";
+import { getErrorMessage } from "@/services/api";
 
-const penaltyTypes = ['Late Declaration', 'EV Non-Compliance', 'Insurance Lapse', 'Data Mismatch', 'PUCC Violation'];
-
-const statusColors: Record<string, string> = {
-  Active: 'bg-red-100 text-red-700 border-red-200',
-  Paid: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  Waived: 'bg-blue-100 text-blue-700 border-blue-200',
-  Appealed: 'bg-amber-100 text-amber-700 border-amber-200',
-};
+const today = new Date().toISOString().slice(0, 10);
 
 export default function AdminPenalties() {
-  const [penalties, setPenalties] = useState<PenaltyRecord[]>(mockPenalties);
-  const [showNew, setShowNew] = useState(false);
-  const [search, setSearch] = useState('');
-  const [newAgg, setNewAgg] = useState(mockCompanies[0].name);
-  const [newType, setNewType] = useState(penaltyTypes[0]);
-  const [newAmount, setNewAmount] = useState('50000');
-  const [newDesc, setNewDesc] = useState('');
-
-  const filtered = penalties.filter(p =>
-    p.aggregator.toLowerCase().includes(search.toLowerCase()) || p.id.toLowerCase().includes(search.toLowerCase())
+  const { auth } = useAuth();
+  const client = useQueryClient();
+  const canEnforce = auth.role === "enforcement" || auth.role === "admin";
+  const appellateOnly = auth.role === "appellate_officer";
+  const cases = useQuery({
+    queryKey: ["enforcement-cases"],
+    queryFn: listEnforcementCases,
+  });
+  const [ownerUserId, setOwnerUserId] = useState("");
+  const [violationCode, setViolationCode] = useState("");
+  const [description, setDescription] = useState("");
+  const [selected, setSelected] = useState<EnforcementCase | null>(null);
+  const [reason, setReason] = useState("");
+  const [penaltyType, setPenaltyType] = useState<"MONETARY" | "NON_MONETARY">(
+    "MONETARY",
+  );
+  const [amount, setAmount] = useState("");
+  const [days, setDays] = useState("10");
+  const [dueDate, setDueDate] = useState("");
+  const selectedActions = useMemo(
+    () =>
+      selected
+        ? getAuthorityEnforcementActions(selected, auth.role, auth.user?.id)
+        : null,
+    [auth.role, auth.user?.id, selected],
   );
 
-  const totalActive = penalties.filter(p => p.status === 'Active').length;
-  const totalCollection = penalties.filter(p => p.status === 'Paid').reduce((s, p) => s + p.amount, 0);
-  const totalPending = penalties.filter(p => p.status === 'Active').reduce((s, p) => s + p.amount, 0);
-
-  const issuePenalty = () => {
-    if (!newDesc.trim()) { toast.error('Please add a description'); return; }
-    const newPen: PenaltyRecord = {
-      id: `PEN-2026-${String(penalties.length + 1).padStart(3, '0')}`,
-      aggregator: newAgg, type: newType, amount: parseInt(newAmount) || 50000,
-      issuedDate: new Date().toLocaleDateString('en-GB'), status: 'Active', description: newDesc,
-    };
-    setPenalties(prev => [newPen, ...prev]);
-    setShowNew(false); setNewDesc('');
-    toast.success(`Penalty ${newPen.id} issued to ${newAgg}`);
+  const close = () => {
+    setSelected(null);
+    setReason("");
+    setAmount("");
+    setDays("10");
+    setDueDate("");
   };
-
-  const waivePenalty = (id: string) => {
-    setPenalties(prev => prev.map(p => p.id === id ? { ...p, status: 'Waived' as const } : p));
-    toast.success(`Penalty ${id} waived`);
+  const refresh = () => {
+    close();
+    void client.invalidateQueries({ queryKey: ["enforcement-cases"] });
   };
+  const create = useMutation({
+    mutationFn: () =>
+      openCase({
+        ownerUserId: Number(ownerUserId),
+        source: "PORTAL",
+        violationCode,
+        description,
+      }),
+    onSuccess: () => {
+      setOwnerUserId("");
+      setViolationCode("");
+      setDescription("");
+      refresh();
+    },
+  });
+  const act = useMutation({
+    mutationFn: async (name: string) => {
+      if (!selected) throw new Error("Select a case.");
+      if (name === "penalty")
+        return issuePenalty(
+          selected.id,
+          penaltyType === "MONETARY"
+            ? { type: penaltyType, amount: Number(amount), dueDate }
+            : { type: penaltyType, instruction: reason, dueDate },
+        );
+      if (name === "suspend")
+        return suspendLicense(selected.id, Number(days), reason);
+      if (name === "extend") return extendSuspension(selected.id, Number(days));
+      if (name === "cancel") return cancelLicense(selected.id, reason);
+      if (name === "satisfactory")
+        return reviewComplianceResponse(selected.id, true, reason);
+      if (name === "unsatisfactory")
+        return reviewComplianceResponse(selected.id, false, reason);
+      if (name === "appeal-start") return startEnforcementAppeal(selected.id);
+      return decideEnforcementAppeal(
+        selected.id,
+        name === "appeal-allow",
+        reason,
+      );
+    },
+    onSuccess: refresh,
+  });
+  const submitCase = (event: FormEvent) => {
+    event.preventDefault();
+    create.mutate();
+  };
+  const actionError = act.isError ? getErrorMessage(act.error) : "";
 
   return (
     <DashboardLayout>
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h1 className="font-heading text-2xl font-bold">Penalties &amp; Enforcement</h1>
-          <p className="text-sm text-muted-foreground">Issue penalties, track payments, and enforce compliance.</p>
-        </div>
-        <Button variant="accent" size="sm" className="gap-1.5" onClick={() => setShowNew(!showNew)}>
-          {showNew ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {showNew ? 'Cancel' : 'Issue Penalty'}
-        </Button>
-      </div>
+      <h1 className="font-heading text-2xl font-bold">
+        {appellateOnly
+          ? "Enforcement appeals"
+          : "Penalties and regulatory actions"}
+      </h1>
+      <p className="mb-6 text-sm text-muted-foreground">
+        {appellateOnly
+          ? "Review assigned appeals against enforcement decisions."
+          : "Open violations, issue penalties and manage licence actions."}
+      </p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-        {[
-          { label: 'Total', value: penalties.length, icon: AlertTriangle, color: 'text-foreground', bg: 'bg-accent/10 text-accent' },
-          { label: 'Active', value: totalActive, icon: ShieldOff, color: 'text-red-600', bg: 'bg-red-100 text-red-600' },
-          { label: 'Pending ₹', value: formatINR(totalPending), icon: BanknoteIcon, color: 'text-amber-600', bg: 'bg-amber-100 text-amber-600' },
-          { label: 'Collected ₹', value: formatINR(totalCollection), icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-100 text-emerald-600' },
-        ].map(c => (
-          <div key={c.label} className="glass rounded-xl p-4 flex items-start justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{c.label}</p>
-              <p className={cn("text-xl font-heading font-bold mt-1", c.color)}>{c.value}</p>
-            </div>
-            <div className={cn("p-2 rounded-lg", c.bg)}><c.icon className="w-4 h-4" /></div>
-          </div>
-        ))}
-      </div>
-
-      {showNew && (
-        <div className="glass rounded-xl p-6 mb-6 border-2 border-accent/30">
-          <h3 className="font-heading font-semibold text-sm mb-4 flex items-center gap-2"><Scale className="w-4 h-4 text-accent" /> Issue New Penalty</h3>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-            <div>
-              <label className="text-[10px] font-semibold text-muted-foreground uppercase mb-1 block">Aggregator</label>
-              <select value={newAgg} onChange={e => setNewAgg(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm">{mockCompanies.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
-            </div>
-            <div>
-              <label className="text-[10px] font-semibold text-muted-foreground uppercase mb-1 block">Type</label>
-              <select value={newType} onChange={e => setNewType(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm">{penaltyTypes.map(t => <option key={t}>{t}</option>)}</select>
-            </div>
-            <div>
-              <label className="text-[10px] font-semibold text-muted-foreground uppercase mb-1 block">Amount (₹)</label>
-              <input type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm" />
-            </div>
-            <div className="flex items-end"><Button variant="accent" className="w-full gap-1.5" onClick={issuePenalty}><AlertTriangle className="w-4 h-4" /> Issue</Button></div>
-          </div>
-          <textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm resize-none h-20" placeholder="Describe the violation..." />
-        </div>
+      {canEnforce && (
+        <form
+          onSubmit={submitCase}
+          className="mb-6 grid gap-3 rounded-xl border bg-card p-4 md:grid-cols-4"
+        >
+          <input
+            type="number"
+            min="1"
+            required
+            value={ownerUserId}
+            onChange={(event) => setOwnerUserId(event.target.value)}
+            placeholder="Operator user ID"
+            className="rounded-lg border bg-background p-2 text-sm"
+          />
+          <input
+            required
+            value={violationCode}
+            onChange={(event) => setViolationCode(event.target.value)}
+            placeholder="Violation code"
+            className="rounded-lg border bg-background p-2 text-sm"
+          />
+          <input
+            required
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="Violation description"
+            className="rounded-lg border bg-background p-2 text-sm"
+          />
+          <button
+            disabled={create.isPending}
+            className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50"
+          >
+            {create.isPending ? "Opening…" : "Open case"}
+          </button>
+        </form>
       )}
 
-      <div className="relative max-w-sm mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-border bg-card" placeholder="Search penalties..." value={search} onChange={e => setSearch(e.target.value)} />
+      {(cases.isError || create.isError) && (
+        <p className="mb-4 text-destructive">
+          {getErrorMessage(cases.error || create.error)}
+        </p>
+      )}
+      <div className="space-y-3">
+        {cases.data?.map((item) => {
+          const available = getAuthorityEnforcementActions(
+            item,
+            auth.role,
+            auth.user?.id,
+          );
+          return (
+            <article key={item.id} className="rounded-xl border bg-card p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold">
+                    {item.caseNumber} · {item.violationCode}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Operator #{item.ownerUserId} · {item.description}
+                  </p>
+                </div>
+                <span className="rounded-full bg-muted px-3 py-1 text-xs">
+                  {item.status.replaceAll("_", " ")}
+                </span>
+              </div>
+              <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
+                <p>
+                  <b>Penalty:</b>{" "}
+                  {item.penalty
+                    ? `${item.penalty.type}${item.penalty.amount ? ` ₹${item.penalty.amount}` : ""} · ${item.penalty.status}`
+                    : "Not issued"}
+                </p>
+                <p>
+                  <b>Actions:</b>{" "}
+                  {item.actions
+                    .map((action) => `${action.type} (${action.status})`)
+                    .join(", ") || "None"}
+                </p>
+                <p>
+                  <b>Appeal:</b> {item.appeal?.status ?? "None"}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setSelected(item);
+                  setReason("");
+                }}
+                className="mt-3 rounded-lg border px-3 py-2 text-sm"
+              >
+                {available.hasActions ? "Manage case" : "View details"}
+              </button>
+            </article>
+          );
+        })}
+        {cases.data?.length === 0 && (
+          <p className="rounded-xl border p-8 text-center text-muted-foreground">
+            No enforcement cases.
+          </p>
+        )}
       </div>
 
-      <div className="glass rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-secondary/50">
-                {['ID','Aggregator','Type','Amount','Issued','Status','Actions'].map(h => (
-                  <th key={h} className={cn("px-5 py-3 font-medium text-[10px] text-muted-foreground uppercase tracking-wider", h === 'Amount' ? 'text-right' : h === 'Actions' || h === 'Status' || h === 'Issued' ? 'text-center' : 'text-left')}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(p => (
-                <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
-                  <td className="px-5 py-3 text-xs font-mono font-semibold">{p.id}</td>
-                  <td className="px-5 py-3 text-xs font-medium">{p.aggregator}</td>
-                  <td className="px-5 py-3 text-xs text-muted-foreground">{p.type}</td>
-                  <td className="px-5 py-3 text-xs text-right font-bold">{formatINR(p.amount)}</td>
-                  <td className="px-5 py-3 text-xs text-center text-muted-foreground">{p.issuedDate}</td>
-                  <td className="px-5 py-3 text-center"><Badge className={cn("text-[10px] border", statusColors[p.status])}>{p.status}</Badge></td>
-                  <td className="px-5 py-3 text-center">
-                    {p.status === 'Active' && <Button size="sm" variant="ghost" className="h-7 px-2.5 text-[10px] text-blue-600 hover:bg-blue-50" onClick={() => waivePenalty(p.id)}>Waive</Button>}
-                    {p.status === 'Appealed' && <span className="text-[10px] text-muted-foreground">Under appeal</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {selected && selectedActions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <section className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-xl bg-background p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-semibold">{selected.caseNumber}</h2>
+                <p className="text-sm text-muted-foreground">
+                  {selected.violationCode} · {selected.description}
+                </p>
+              </div>
+              <span className="rounded-full bg-muted px-3 py-1 text-xs">
+                {selected.status.replaceAll("_", " ")}
+              </span>
+            </div>
+
+            {selected.penalty && (
+              <div className="mt-4 rounded-lg border p-4 text-sm">
+                <h3 className="font-semibold">Penalty evidence</h3>
+                <p className="mt-2">
+                  <b>Type:</b> {selected.penalty.type.replaceAll("_", " ")}
+                </p>
+                <p>
+                  <b>Due date:</b> {selected.penalty.dueDate}
+                </p>
+                <p>
+                  <b>Status:</b> {selected.penalty.status.replaceAll("_", " ")}
+                </p>
+                {selected.penalty.instruction && (
+                  <p className="mt-2">
+                    <b>Instruction:</b> {selected.penalty.instruction}
+                  </p>
+                )}
+                {selected.penalty.complianceResponse && (
+                  <div className="mt-3 rounded-md bg-muted p-3">
+                    <b>Operator compliance response</b>
+                    <p className="mt-1 whitespace-pre-wrap">
+                      {selected.penalty.complianceResponse}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            {selected.appeal && (
+              <div className="mt-4 rounded-lg border p-4 text-sm">
+                <h3 className="font-semibold">Appeal evidence</h3>
+                <p className="mt-2 whitespace-pre-wrap">
+                  <b>Grounds:</b> {selected.appeal.grounds}
+                </p>
+                <p className="mt-2">
+                  <b>Status:</b> {selected.appeal.status.replaceAll("_", " ")}
+                </p>
+                {selected.appeal.reviewerUserId && (
+                  <p>
+                    <b>Assigned reviewer:</b> #{selected.appeal.reviewerUserId}
+                  </p>
+                )}
+                {selected.appeal.decisionReason && (
+                  <p className="mt-2 whitespace-pre-wrap">
+                    <b>Decision reason:</b> {selected.appeal.decisionReason}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!selectedActions.hasActions && (
+              <p className="mt-4 rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+                {enforcementStatusMessage(selected)}
+              </p>
+            )}
+
+            {selectedActions.issuePenalty && (
+              <div className="mt-4 space-y-3 rounded-lg border p-4">
+                <h3 className="font-semibold">Issue penalty</h3>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <select
+                    value={penaltyType}
+                    onChange={(event) =>
+                      setPenaltyType(
+                        event.target.value as "MONETARY" | "NON_MONETARY",
+                      )
+                    }
+                    className="rounded border bg-background p-2 text-sm"
+                  >
+                    <option value="MONETARY">Monetary</option>
+                    <option value="NON_MONETARY">Non-monetary</option>
+                  </select>
+                  {penaltyType === "MONETARY" && (
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value)}
+                      placeholder="Amount"
+                      className="rounded border p-2 text-sm"
+                    />
+                  )}
+                  <input
+                    type="date"
+                    min={today}
+                    value={dueDate}
+                    onChange={(event) => setDueDate(event.target.value)}
+                    className="rounded border p-2 text-sm"
+                  />
+                </div>
+                {penaltyType === "NON_MONETARY" && (
+                  <textarea
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    placeholder="Compliance instruction"
+                    className="min-h-20 w-full rounded border bg-background p-3 text-sm"
+                  />
+                )}
+                <button
+                  disabled={
+                    act.isPending ||
+                    !dueDate ||
+                    (penaltyType === "MONETARY"
+                      ? !amount || Number(amount) <= 0
+                      : !reason.trim())
+                  }
+                  onClick={() => act.mutate("penalty")}
+                  className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50"
+                >
+                  Issue penalty
+                </button>
+              </div>
+            )}
+
+            {(selectedActions.reviewResponse ||
+              selectedActions.suspend ||
+              selectedActions.extendSuspension ||
+              selectedActions.cancelLicense ||
+              selectedActions.decideAppeal) && (
+              <div className="mt-4 space-y-3 rounded-lg border p-4">
+                <h3 className="font-semibold">Authority action</h3>
+                {!selectedActions.extendSuspension ||
+                selectedActions.cancelLicense ||
+                selectedActions.reviewResponse ||
+                selectedActions.decideAppeal ? (
+                  <textarea
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    placeholder="Record the reason for this decision"
+                    className="min-h-20 w-full rounded border bg-background p-3 text-sm"
+                  />
+                ) : null}
+                {(selectedActions.suspend ||
+                  selectedActions.extendSuspension) && (
+                  <input
+                    type="number"
+                    min={selectedActions.suspend ? 10 : 1}
+                    max={selectedActions.suspend ? 180 : 170}
+                    value={days}
+                    onChange={(event) => setDays(event.target.value)}
+                    className="w-full rounded border p-2 text-sm sm:w-48"
+                  />
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {selectedActions.reviewResponse && (
+                    <>
+                      <button
+                        disabled={act.isPending || !reason.trim()}
+                        onClick={() => act.mutate("satisfactory")}
+                        className="rounded border px-3 py-2 text-sm disabled:opacity-50"
+                      >
+                        Response satisfactory
+                      </button>
+                      <button
+                        disabled={act.isPending || !reason.trim()}
+                        onClick={() => act.mutate("unsatisfactory")}
+                        className="rounded border px-3 py-2 text-sm disabled:opacity-50"
+                      >
+                        Response deficient
+                      </button>
+                    </>
+                  )}
+                  {selectedActions.suspend && (
+                    <button
+                      disabled={
+                        act.isPending || !reason.trim() || Number(days) < 10
+                      }
+                      onClick={() => act.mutate("suspend")}
+                      className="rounded border px-3 py-2 text-sm disabled:opacity-50"
+                    >
+                      Suspend licence
+                    </button>
+                  )}
+                  {selectedActions.extendSuspension && (
+                    <button
+                      disabled={act.isPending || Number(days) < 1}
+                      onClick={() => act.mutate("extend")}
+                      className="rounded border px-3 py-2 text-sm disabled:opacity-50"
+                    >
+                      Extend suspension
+                    </button>
+                  )}
+                  {selectedActions.cancelLicense && (
+                    <button
+                      disabled={act.isPending || !reason.trim()}
+                      onClick={() => act.mutate("cancel")}
+                      className="rounded bg-destructive px-3 py-2 text-sm text-destructive-foreground disabled:opacity-50"
+                    >
+                      Cancel licence
+                    </button>
+                  )}
+                  {selectedActions.decideAppeal && (
+                    <>
+                      <button
+                        disabled={act.isPending || !reason.trim()}
+                        onClick={() => act.mutate("appeal-allow")}
+                        className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50"
+                      >
+                        Allow appeal
+                      </button>
+                      <button
+                        disabled={act.isPending || !reason.trim()}
+                        onClick={() => act.mutate("appeal-dismiss")}
+                        className="rounded bg-destructive px-3 py-2 text-sm text-destructive-foreground disabled:opacity-50"
+                      >
+                        Dismiss appeal
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+            {selectedActions.startAppealReview && (
+              <button
+                disabled={act.isPending}
+                onClick={() => act.mutate("appeal-start")}
+                className="mt-4 rounded bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50"
+              >
+                Start appeal review
+              </button>
+            )}
+            {actionError && (
+              <p className="mt-3 text-sm text-destructive">{actionError}</p>
+            )}
+            <div className="mt-5 flex justify-end">
+              <button
+                onClick={close}
+                className="rounded border px-3 py-2 text-sm"
+              >
+                Close
+              </button>
+            </div>
+          </section>
         </div>
-      </div>
+      )}
     </DashboardLayout>
   );
 }

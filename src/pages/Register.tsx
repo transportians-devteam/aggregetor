@@ -1,487 +1,646 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Leaf, Building2, FileUp, Truck, ClipboardCheck, ArrowLeft, ArrowRight, Check, Zap, Upload, AlertCircle, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
-import api from '@/services/api';
+import { ChangeEvent, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  ArrowLeft,
+  Building2,
+  CheckCircle2,
+  FileCheck2,
+  Loader2,
+  ShieldCheck,
+  Upload,
+  Zap,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  loginDevelopment,
+  registerDevelopment,
+  requestRegistrationOtp,
+  verifyRegistrationOtp,
+  DevelopmentRegistration,
+} from "@/services/authService";
+import {
+  createApplication,
+  submitApplication,
+  uploadDocument,
+  DocumentType,
+} from "@/services/registrationService";
+import { getErrorMessage } from "@/services/api";
 
-const REGISTRATION_PROCESS = [
-  { id: 1, title: 'Eligibility Check' },
-  { id: 2, title: 'Document Preparation' },
-  { id: 3, title: 'Portal Registration', active: true },
-  { id: 4, title: 'Application Submission' },
-  { id: 5, title: 'DC Verification' },
-  { id: 6, title: 'SCoT EV Approval' },
-  { id: 7, title: '(Appellate if needed)', optional: true },
-  { id: 8, title: 'License Granted (5 yrs)' },
-  { id: 9, title: 'Start Operations' },
+const requiredDocuments: Array<{ type: DocumentType; label: string }> = [
+  { type: "COMPANY_REGISTRATION", label: "Company registration certificate" },
+  { type: "GST_CERTIFICATE", label: "GST certificate" },
+  { type: "PAN_CERTIFICATE", label: "PAN certificate" },
+  { type: "BANK_GUARANTEE", label: "Bank guarantee" },
 ];
-
-const STEPS = [
-  { label: 'Details', icon: Building2 },
-  { label: 'Docs', icon: FileUp },
-  { label: 'Fleet', icon: Truck },
-  { label: 'Review', icon: ClipboardCheck },
-];
-
-const VEHICLE_CATEGORIES = ['2W', '3W-Passenger', '3W-LCV', '4W-Passenger', '4W-Carrier'] as const;
-
-const DOCUMENTS = [
-  { key: 'coi', label: 'Certificate of Incorporation', required: true },
-  { key: 'pan', label: 'PAN Card', required: true },
-  { key: 'gst', label: 'GST Certificate', required: true },
-  { key: 'insurance', label: 'Fleet Insurance Policy', required: true },
-  { key: 'address', label: 'Proof of Registered Address', required: true },
-] as const;
-
-const stepVariants = {
-  enter: (dir: number) => ({ x: dir > 0 ? 40 : -40, opacity: 0 }),
-  center: { x: 0, opacity: 1 },
-  exit: (dir: number) => ({ x: dir > 0 ? -40 : 40, opacity: 0 }),
-};
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
-  const [direction, setDirection] = useState(1);
+  const { auth, acceptSession } = useAuth();
+  const [companyName, setCompanyName] = useState("");
+  const [companyType, setCompanyType] = useState<
+    "Aggregator" | "DSP" | "E-Commerce"
+  >("Aggregator");
+  const [registrationNumber, setRegistrationNumber] = useState("");
+  const [registeredAddress, setRegisteredAddress] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [declaredFleetSize, setDeclaredFleetSize] = useState(26);
+  const [categories, setCategories] = useState<string[]>(["4W"]);
+  const [branchOfficeAddress, setBranchOfficeAddress] = useState("");
+  const [officeInNcr, setOfficeInNcr] = useState(false);
+  const [complianceOfficerName, setComplianceOfficerName] = useState("");
+  const [complianceOfficerDesignation, setComplianceOfficerDesignation] =
+    useState("Compliance Officer");
+  const [complianceOfficerPhone, setComplianceOfficerPhone] = useState("");
+  const [complianceOfficerEmail, setComplianceOfficerEmail] = useState("");
+  const [bankGuaranteeNumber, setBankGuaranteeNumber] = useState("");
+  const [bankGuaranteeBank, setBankGuaranteeBank] = useState("");
+  const [bankGuaranteeAmount, setBankGuaranteeAmount] = useState(0);
+  const [bankGuaranteeValidUntil, setBankGuaranteeValidUntil] = useState("");
+  const bankGuaranteeBeneficiary =
+    "Commissioner of Transport, Government of NCT of Delhi";
+  const [documents, setDocuments] = useState<
+    Partial<Record<DocumentType, File>>
+  >({});
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [otp, setOtp] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const uploadedCount = requiredDocuments.filter(
+    ({ type }) => documents[type],
+  ).length;
 
-  // Step 1: Company Details
-  const [companyName, setCompanyName] = useState('');
-  const [companyType, setCompanyType] = useState<'Aggregator' | 'DSP'>('Aggregator');
-  const [cin, setCin] = useState('');
-  const [regAddress, setRegAddress] = useState('');
-  const [contactName, setContactName] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
-
-  // Step 2: Documents (simulate file selection)
-  const [uploadedDocs, setUploadedDocs] = useState<Record<string, string>>({});
-
-  // Step 3: Vehicle Categories
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-
-  // Step 4: Agreement
-  const [agreed, setAgreed] = useState(false);
-
-  const goNext = () => { setDirection(1); setStep(s => Math.min(s + 1, 3)); };
-  const goPrev = () => { setDirection(-1); setStep(s => Math.max(s - 1, 0)); };
-
-  const canProceed = () => {
-    if (step === 0) return companyName.trim() && cin.trim() && contactName.trim() && contactEmail.trim() && contactPhone.trim();
-    if (step === 1) return DOCUMENTS.filter(d => d.required).every(d => uploadedDocs[d.key]);
-    if (step === 2) return selectedCategories.length > 0;
-    if (step === 3) return agreed;
-    return false;
+  const registration: DevelopmentRegistration = {
+    companyName,
+    companyType,
+    cin: registrationNumber,
+    regAddress: registeredAddress,
+    contactName,
+    contactPhone,
+    contactEmail,
+    categories,
   };
 
-  const simulateUpload = (key: string) => {
-    setUploadedDocs(prev => ({ ...prev, [key]: `${key}_document.pdf` }));
-  };
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-    try {
-      await api.post('/auth/register', {
-        companyName,
-        companyType,
-        cin,
-        regAddress,
-        contactName,
-        contactPhone,
-        contactEmail,
-        categories: selectedCategories
-      });
-      toast.success('Application submitted successfully!', {
-        description: 'Your license application has been sent for review. Please wait for DC Verification.',
-      });
-      setTimeout(() => navigate('/login'), 2500);
-    } catch (error) {
-      toast.error('Registration failed', {
-        description: 'There was an error submitting your application. Please check your details and try again.',
-      });
-      setIsSubmitting(false);
-    }
-  };
-
-  const toggleCategory = (cat: string) => {
-    setSelectedCategories(prev =>
-      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+  const toggleCategory = (category: string) => {
+    setCategories((current) =>
+      current.includes(category)
+        ? current.filter((value) => value !== category)
+        : [...current, category],
     );
   };
 
+  const selectFile =
+    (type: DocumentType) => (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (file) setDocuments((current) => ({ ...current, [type]: file }));
+    };
+
+  const validate = () => {
+    if (
+      !companyName ||
+      !registrationNumber ||
+      !registeredAddress ||
+      !contactName ||
+      !contactEmail ||
+      !/^\d{10,15}$/.test(contactPhone)
+    )
+      return "Complete all company and contact fields.";
+    if (declaredFleetSize < 26)
+      return "The declared fleet size must be at least 26.";
+    if (!categories.length) return "Select at least one vehicle category.";
+    if (!officeInNcr || !branchOfficeAddress.trim())
+      return "Confirm and provide the corporate or branch office address within NCR.";
+    if (
+      !complianceOfficerName ||
+      !complianceOfficerDesignation ||
+      !complianceOfficerEmail ||
+      !/^\d{10,15}$/.test(complianceOfficerPhone)
+    )
+      return "Complete the designated compliance officer details.";
+    if (
+      !bankGuaranteeNumber ||
+      !bankGuaranteeBank ||
+      bankGuaranteeAmount <= 0 ||
+      !bankGuaranteeValidUntil
+    )
+      return "Complete the bank guarantee security details.";
+    if (requiredDocuments.some(({ type }) => !documents[type]))
+      return "Upload all four mandatory documents.";
+    return "";
+  };
+
+  const ensureSession = async () => {
+    if (auth.isLoggedIn) return;
+    if (import.meta.env.DEV) {
+      await registerDevelopment(registration);
+      acceptSession(
+        await loginDevelopment(
+          contactPhone,
+          companyType === "DSP" ? "dsp" : "aggregator",
+        ),
+      );
+      return;
+    }
+    if (!challengeId) {
+      const challenge = await requestRegistrationOtp(registration);
+      setChallengeId(challenge.challengeId);
+      throw new Error("OTP_SENT");
+    }
+    acceptSession(await verifyRegistrationOtp(challengeId, otp));
+  };
+
+  const submit = async () => {
+    const validation = validate();
+    if (validation) {
+      setError(validation);
+      return;
+    }
+    if (challengeId && otp.length !== 6) {
+      setError("Enter the six-digit registration OTP.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await ensureSession();
+      const application = await createApplication({
+        organizationType:
+          companyType === "DSP"
+            ? "DSP"
+            : companyType === "E-Commerce"
+              ? "E_COMMERCE"
+              : "AGGREGATOR",
+        companyName,
+        registrationNumber,
+        registeredAddress,
+        contactName,
+        contactPhone,
+        contactEmail,
+        declaredFleetSize,
+        categories,
+        officeInNcr,
+        branchOfficeAddress,
+        complianceOfficerName,
+        complianceOfficerDesignation,
+        complianceOfficerPhone,
+        complianceOfficerEmail,
+        bankGuaranteeNumber,
+        bankGuaranteeBank,
+        bankGuaranteeAmount,
+        bankGuaranteeValidUntil,
+        bankGuaranteeBeneficiary,
+      });
+      for (const { type } of requiredDocuments)
+        await uploadDocument(application.id, type, documents[type]!);
+      await submitApplication(application.id);
+      toast.success("Application submitted", {
+        description: application.applicationNumber,
+      });
+      navigate("/dashboard");
+    } catch (requestError) {
+      if (
+        requestError instanceof Error &&
+        requestError.message === "OTP_SENT"
+      ) {
+        toast.success("OTP sent", {
+          description: "Verify your phone to complete registration.",
+        });
+      } else
+        setError(
+          getErrorMessage(requestError, "Registration could not be completed."),
+        );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Left panel (similar to Login.tsx but showing Process Flow) */}
-      <div className="hidden lg:flex lg:w-[45%] bg-primary text-primary-foreground p-12 flex-col relative overflow-hidden h-screen overflow-y-auto no-scrollbar">
-        <div className="grain absolute inset-0 pointer-events-none" />
-        
-        <div className="relative z-10 flex-1 flex flex-col">
-          <Link to="/" className="inline-flex items-center gap-2 text-primary-foreground/60 text-sm hover:text-primary-foreground transition-colors mb-12 w-fit">
-            <ArrowLeft className="w-4 h-4" /> Back to Home
+    <div className="min-h-screen bg-[#f7f9f8] lg:flex">
+      <aside className="hidden min-h-screen shrink-0 flex-col justify-between bg-primary p-10 text-primary-foreground lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[36%] xl:w-[34%] xl:p-12">
+        <div>
+          <Link
+            to="/"
+            className="mb-10 inline-flex items-center gap-2 text-sm opacity-70 transition hover:opacity-100"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to portal
           </Link>
-          
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center">
-              <Zap className="w-6 h-6 text-accent-foreground" />
-            </div>
-            <div>
-              <p className="font-heading font-bold text-lg leading-tight">GACP</p>
-              <p className="text-[10px] text-primary-foreground/70 uppercase tracking-widest">Registration</p>
-            </div>
+          <div className="mb-8 flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-lg bg-accent">
+              <Zap className="h-6 w-6" />
+            </span>
+            <strong className="text-xl">GACP</strong>
           </div>
-          
-          <div className="mb-10">
-            <h2 className="font-heading text-3xl font-bold leading-snug">
-              Licensing Process Flow
-            </h2>
-            <p className="mt-3 text-sm text-primary-foreground/60 max-w-sm leading-relaxed">
-              Understand the end-to-end journey from application to final license grant under the Delhi Motor Vehicle Aggregator Scheme.
+          <h1 className="font-heading text-4xl font-bold leading-tight">
+            Apply for your Delhi aggregator licence.
+          </h1>
+          <p className="mt-4 max-w-md text-sm leading-relaxed opacity-70">
+            Complete organisation details, upload the prescribed documents and
+            submit one secure digital application.
+          </p>
+          <div className="mt-10 space-y-5">
+            {[
+              [
+                "1",
+                "Organisation details",
+                "Tell us about the applicant and authorised contact.",
+              ],
+              [
+                "2",
+                "Mandatory documents",
+                "Attach all four prescribed supporting records.",
+              ],
+              [
+                "3",
+                "Verify and submit",
+                "Confirm your mobile number and enter the review queue.",
+              ],
+            ].map(([step, title, text]) => (
+              <div key={step} className="flex gap-4">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/25 bg-white/10 text-xs font-bold">
+                  {step}
+                </span>
+                <div>
+                  <b className="text-sm">{title}</b>
+                  <p className="mt-0.5 text-xs leading-relaxed opacity-55">
+                    {text}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="mb-5 flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+            <p className="text-xs leading-relaxed opacity-70">
+              Your application remains editable if the reviewing officer raises
+              a deficiency.
             </p>
           </div>
-
-          {/* Vertical Timeline */}
-          <div className="relative flex-1 pl-4 border-l border-primary-foreground/20 space-y-8 ml-2 mb-12">
-            {REGISTRATION_PROCESS.map((proc, idx) => {
-              const isActive = proc.active;
-              const isPast = REGISTRATION_PROCESS.findIndex(p => p.active) > idx;
-              
-              return (
-                <div key={proc.id} className="relative">
-                  {/* Timeline Dot */}
-                  <div className={`absolute -left-[21px] top-0.5 w-2.5 h-2.5 rounded-full outline outline-4 outline-primary ${
-                    isActive ? 'bg-accent shadow-[0_0_12px_rgba(var(--accent),0.6)]' :
-                    isPast ? 'bg-primary-foreground/60' : 'bg-primary-foreground/20'
-                  }`} />
-                  
-                  <div className={`-mt-1 ${isActive ? 'opacity-100' : isPast ? 'opacity-60' : 'opacity-40'}`}>
-                    <h3 className={`font-semibold text-sm flex items-center gap-2 ${isActive ? 'text-accent text-base' : ''}`}>
-                      {proc.title}
-                      {proc.optional && <span className="text-[10px] font-normal px-1.5 py-0.5 rounded-full border border-current text-inherit opacity-70">Optional</span>}
-                      {isActive && <span className="text-[10px] bg-accent text-accent-foreground px-2 py-0.5 rounded-full font-bold ml-1 animate-pulse">YOU ARE HERE</span>}
-                    </h3>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <p className="text-xs text-primary-foreground/30 mt-auto">
-            Transport Department · Govt of NCT of Delhi
+          <p className="text-xs opacity-45">
+            Transport Department · Government of NCT of Delhi
           </p>
         </div>
-      </div>
+      </aside>
 
-      {/* Right panel (Interactive Form) */}
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto no-scrollbar">
-        {/* Mobile Header Toolbar */}
-        <div className="lg:hidden p-4 border-b border-border flex items-center justify-between sticky top-0 bg-background/80 backdrop-blur-md z-50">
-          <div className="flex items-center gap-2">
-            <Zap className="w-5 h-5 text-accent" />
-            <span className="font-heading font-bold">GACP</span>
-          </div>
-          <Link to="/" className="text-sm font-medium hover:text-accent">Home</Link>
-        </div>
-
-        <div className="flex-1 flex flex-col px-6 py-8 md:px-16 md:py-12 max-w-3xl w-full mx-auto">
-          <div className="flex items-center justify-between mb-8">
+      <main className="min-w-0 flex-1">
+        <header className="flex h-16 items-center justify-between border-b bg-white px-4 sm:px-6 lg:hidden">
+          <Link
+            to="/"
+            className="flex items-center gap-2 font-heading font-bold text-primary"
+          >
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground">
+              <Zap className="h-5 w-5" />
+            </span>
+            GACP
+          </Link>
+          <Link to="/login" className="text-sm font-semibold text-primary">
+            Sign in
+          </Link>
+        </header>
+        <div className="mx-auto w-full max-w-5xl px-4 py-7 sm:px-6 sm:py-10 lg:px-8 xl:py-12">
+          <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h1 className="font-heading text-2xl font-bold">Portal Registration</h1>
-              <p className="text-sm text-muted-foreground mt-1">Complete the steps to submit your application.</p>
+              <p className="mb-2 text-xs font-bold uppercase tracking-[.14em] text-accent">
+                Licence application
+              </p>
+              <h2 className="font-heading text-3xl font-bold text-foreground sm:text-4xl">
+                Register your organisation
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                Account verification, document upload and application submission
+                are completed in this regulated workflow.
+              </p>
             </div>
-            <Link to="/login" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-              Have an account? <span className="text-accent">Login</span>
+            <Link
+              to="/login"
+              className="hidden rounded-lg border bg-white px-4 py-2 text-sm font-semibold text-primary shadow-sm transition hover:bg-muted lg:block"
+            >
+              Already registered? Sign in
             </Link>
           </div>
 
-          {/* Stepper */}
-          <div className="flex items-center mb-10 gap-1 bg-secondary/50 p-2 rounded-xl">
-            {STEPS.map((s, i) => {
-              const Icon = s.icon;
-              const isActive = i === step;
-              const isDone = i < step;
-              return (
-                <div key={s.label} className="flex items-center flex-1 last:flex-none">
-                  <div className="flex items-center gap-2">
-                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${
-                      isDone ? 'bg-accent text-accent-foreground shadow-sm' : isActive ? 'bg-primary text-primary-foreground shadow-md' : 'bg-transparent text-muted-foreground'
-                    }`}>
-                      {isDone ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
-                    </div>
-                    <span className={`text-xs font-semibold hidden md:block ${
-                      isActive ? 'text-foreground' : 'text-muted-foreground'
-                    }`}>{s.label}</span>
-                  </div>
-                  {i < STEPS.length - 1 && (
-                    <div className={`flex-1 h-0.5 mx-2 md:mx-4 rounded-full transition-colors ${
-                      i < step ? 'bg-accent/50' : 'bg-border'
-                    }`} />
-                  )}
+          <div className="grid items-start gap-6 xl:grid-cols-[1.08fr_.92fr]">
+            <section className="space-y-5 rounded-2xl border bg-white p-5 shadow-[0_12px_35px_rgba(15,60,40,.06)] sm:p-6">
+              <div className="flex items-center gap-3 border-b pb-4">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
+                  <Building2 className="h-5 w-5" />
+                </span>
+                <div>
+                  <h3 className="font-heading font-bold">
+                    Organisation details
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Applicant and primary contact information
+                  </p>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+              <div>
+                <Label>Company name</Label>
+                <Input
+                  className="mt-1.5"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="Registered organisation name"
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Organisation type</Label>
+                  <select
+                    className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    value={companyType}
+                    onChange={(e) =>
+                      setCompanyType(
+                        e.target.value as "Aggregator" | "DSP" | "E-Commerce",
+                      )
+                    }
+                  >
+                    <option>Aggregator</option>
+                    <option>DSP</option>
+                    <option>E-Commerce</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>CIN / registration number</Label>
+                  <Input
+                    className="mt-1.5"
+                    value={registrationNumber}
+                    onChange={(e) => setRegistrationNumber(e.target.value)}
+                    placeholder="Registration number"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Registered address</Label>
+                <Input
+                  className="mt-1.5"
+                  value={registeredAddress}
+                  onChange={(e) => setRegisteredAddress(e.target.value)}
+                  placeholder="Registered office address"
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Contact person</Label>
+                  <Input
+                    className="mt-1.5"
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                    placeholder="Authorised contact"
+                  />
+                </div>
+                <div>
+                  <Label>Mobile number</Label>
+                  <Input
+                    className="mt-1.5"
+                    value={contactPhone}
+                    onChange={(e) =>
+                      setContactPhone(e.target.value.replace(/\D/g, ""))
+                    }
+                    placeholder="10 to 15 digits"
+                    maxLength={15}
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Email address</Label>
+                  <Input
+                    className="mt-1.5"
+                    type="email"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    placeholder="contact@company.in"
+                  />
+                </div>
+                <div>
+                  <Label>Declared fleet size</Label>
+                  <Input
+                    className="mt-1.5"
+                    type="number"
+                    min={26}
+                    value={declaredFleetSize}
+                    onChange={(e) =>
+                      setDeclaredFleetSize(Number(e.target.value))
+                    }
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Vehicle categories</Label>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {["2W", "3W", "4W"].map((category) => (
+                    <button
+                      type="button"
+                      key={category}
+                      onClick={() => toggleCategory(category)}
+                      className={`rounded-lg border px-4 py-2.5 text-sm font-semibold transition ${categories.includes(category) ? "border-primary bg-primary text-primary-foreground shadow-sm" : "bg-background text-muted-foreground hover:border-primary/40"}`}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="border-t pt-5">
+                <h4 className="font-semibold">
+                  NCR office and compliance officer
+                </h4>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  A corporate or branch office in NCR and a designated
+                  compliance officer are mandatory.
+                </p>
+                <Input
+                  value={branchOfficeAddress}
+                  onChange={(e) => setBranchOfficeAddress(e.target.value)}
+                  placeholder="Corporate / branch office address within NCR"
+                />
+                <label className="mt-3 flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={officeInNcr}
+                    onChange={(e) => setOfficeInNcr(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>
+                    I confirm this office is located within the National Capital
+                    Region.
+                  </span>
+                </label>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <Input
+                    value={complianceOfficerName}
+                    onChange={(e) => setComplianceOfficerName(e.target.value)}
+                    placeholder="Compliance officer name"
+                  />
+                  <Input
+                    value={complianceOfficerDesignation}
+                    onChange={(e) =>
+                      setComplianceOfficerDesignation(e.target.value)
+                    }
+                    placeholder="Designation"
+                  />
+                  <Input
+                    value={complianceOfficerPhone}
+                    onChange={(e) =>
+                      setComplianceOfficerPhone(
+                        e.target.value.replace(/\D/g, ""),
+                      )
+                    }
+                    placeholder="Officer mobile number"
+                  />
+                  <Input
+                    type="email"
+                    value={complianceOfficerEmail}
+                    onChange={(e) => setComplianceOfficerEmail(e.target.value)}
+                    placeholder="Officer email"
+                  />
+                </div>
+              </div>
+              <div className="border-t pt-5">
+                <h4 className="font-semibold">
+                  Bank guarantee as security deposit
+                </h4>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Beneficiary: {bankGuaranteeBeneficiary}
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Input
+                    value={bankGuaranteeNumber}
+                    onChange={(e) =>
+                      setBankGuaranteeNumber(e.target.value.toUpperCase())
+                    }
+                    placeholder="Guarantee number"
+                  />
+                  <Input
+                    value={bankGuaranteeBank}
+                    onChange={(e) => setBankGuaranteeBank(e.target.value)}
+                    placeholder="Issuing bank"
+                  />
+                  <Input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={bankGuaranteeAmount || ""}
+                    onChange={(e) =>
+                      setBankGuaranteeAmount(Number(e.target.value))
+                    }
+                    placeholder="Guarantee amount (INR)"
+                  />
+                  <Input
+                    type="date"
+                    min={new Date(Date.now() + 86400000)
+                      .toISOString()
+                      .slice(0, 10)}
+                    value={bankGuaranteeValidUntil}
+                    onChange={(e) => setBankGuaranteeValidUntil(e.target.value)}
+                  />
+                </div>
+              </div>
+            </section>
 
-          {/* Step Content */}
-          <div className="flex-1">
-            <AnimatePresence mode="wait" custom={direction}>
-              <motion.div
-                key={step}
-                custom={direction}
-                variants={stepVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="h-full"
+            <section className="space-y-4 rounded-2xl border bg-white p-5 shadow-[0_12px_35px_rgba(15,60,40,.06)] sm:p-6 xl:sticky xl:top-8">
+              <div className="flex items-center justify-between gap-3 border-b pb-4">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
+                    <FileCheck2 className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h3 className="font-heading font-bold">
+                      Mandatory documents
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      PDF, PNG or JPEG
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
+                  {uploadedCount}/4
+                </span>
+              </div>
+              {requiredDocuments.map(({ type, label }) => {
+                const file = documents[type];
+                return (
+                  <label
+                    key={type}
+                    className={`block cursor-pointer rounded-xl border p-4 transition ${file ? "border-emerald-500/40 bg-emerald-50" : "bg-background hover:border-primary/40 hover:bg-primary/[.02]"}`}
+                  >
+                    <span className="flex items-start gap-3">
+                      <span
+                        className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${file ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"}`}
+                      >
+                        {file ? (
+                          <CheckCircle2 className="h-4 w-4" />
+                        ) : (
+                          <Upload className="h-4 w-4" />
+                        )}
+                      </span>
+                      <span className="min-w-0">
+                        <b className="block text-sm">{label}</b>
+                        <small className="mt-1 block truncate text-muted-foreground">
+                          {file?.name ?? "Choose a file to upload"}
+                        </small>
+                      </span>
+                    </span>
+                    <input
+                      type="file"
+                      accept="application/pdf,image/png,image/jpeg"
+                      className="hidden"
+                      onChange={selectFile(type)}
+                    />
+                  </label>
+                );
+              })}
+              {challengeId && (
+                <div className="rounded-xl border border-accent/30 bg-accent/5 p-4">
+                  <Label>Six-digit registration OTP</Label>
+                  <Input
+                    className="mt-1.5 bg-white"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                    maxLength={6}
+                    placeholder="000000"
+                  />
+                </div>
+              )}
+              {error && (
+                <p
+                  role="alert"
+                  className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
+                >
+                  {error}
+                </p>
+              )}
+              <Button
+                variant="accent"
+                size="lg"
+                className="w-full gap-2"
+                onClick={submit}
+                disabled={busy}
               >
-                {step === 0 && (
-                  <div className="space-y-6">
-                    <div className="grid sm:grid-cols-2 gap-5">
-                      <div className="sm:col-span-2">
-                        <Label>Company / Firm Name *</Label>
-                        <Input placeholder="e.g. Ola Electric Fleet Pvt. Ltd." value={companyName} onChange={e => setCompanyName(e.target.value)} className="mt-1.5" />
-                      </div>
-                      <div>
-                        <Label>License Category *</Label>
-                        <div className="flex gap-2 mt-1.5 p-1 bg-secondary rounded-lg">
-                          {(['Aggregator', 'DSP'] as const).map(type => (
-                            <button
-                              key={type}
-                              onClick={() => setCompanyType(type)}
-                              className={`flex-1 py-2 rounded-md text-xs font-semibold transition-all ${
-                                companyType === type
-                                  ? 'bg-card shadow-sm text-foreground'
-                                  : 'text-muted-foreground hover:text-foreground'
-                              }`}
-                            >
-                              {type === 'DSP' ? 'Delivery SP' : type}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <Label>CIN / Registration No. *</Label>
-                        <Input placeholder="U74999DL2023PTC..." value={cin} onChange={e => setCin(e.target.value)} className="mt-1.5" />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Label>Registered Office Address in Delhi</Label>
-                        <Input placeholder="Full localized address" value={regAddress} onChange={e => setRegAddress(e.target.value)} className="mt-1.5" />
-                      </div>
-                      <div className="sm:col-span-2 pt-2 border-t border-border mt-2">
-                        <h3 className="font-heading font-semibold text-sm mb-4">Authorized Nodal Officer</h3>
-                      </div>
-                      <div>
-                        <Label>Full Name *</Label>
-                        <Input placeholder="Contact person name" value={contactName} onChange={e => setContactName(e.target.value)} className="mt-1.5" />
-                      </div>
-                      <div>
-                        <Label>Mobile Number *</Label>
-                        <Input type="tel" placeholder="+91 98765 43210" value={contactPhone} onChange={e => setContactPhone(e.target.value)} className="mt-1.5" />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Label>Email Address *</Label>
-                        <Input type="email" placeholder="contact@company.com" value={contactEmail} onChange={e => setContactEmail(e.target.value)} className="mt-1.5" />
-                      </div>
-                    </div>
-                  </div>
+                {busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileCheck2 className="h-4 w-4" />
                 )}
-
-                {step === 1 && (
-                  <div className="space-y-4">
-                    <div className="bg-secondary/50 p-4 rounded-xl flex gap-3 items-start mb-6">
-                      <AlertCircle className="w-5 h-5 text-accent shrink-0 mt-0.5" />
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        Upload perfectly scanned, clear PDF copies (max 5 MB each). Ensure company name matches Registration/CIN exactly.
-                      </p>
-                    </div>
-
-                    <div className="grid gap-3">
-                      {DOCUMENTS.map(doc => {
-                        const uploaded = !!uploadedDocs[doc.key];
-                        return (
-                          <div key={doc.key} className={`flex items-center justify-between rounded-xl border p-3.5 transition-all ${
-                            uploaded ? 'bg-accent/5 border-accent/40 shadow-sm' : 'bg-card border-border hover:border-accent/40'
-                          }`}>
-                            <div className="flex items-center gap-3">
-                              <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${
-                                uploaded ? 'bg-accent text-accent-foreground' : 'bg-secondary text-muted-foreground'
-                              }`}>
-                                {uploaded ? <Check className="h-4 w-4" /> : <FileUp className="h-4 w-4" />}
-                              </div>
-                              <div>
-                                <p className="text-sm font-semibold">{doc.label} {doc.required && <span className="text-destructive">*</span>}</p>
-                                {uploaded ? (
-                                  <p className="text-[10px] text-accent mt-0.5">{uploadedDocs[doc.key]} • 1.2 MB</p>
-                                ) : (
-                                  <p className="text-[10px] text-muted-foreground mt-0.5">Pending upload</p>
-                                )}
-                              </div>
-                            </div>
-                            <Button
-                              variant={uploaded ? 'outline' : 'secondary'}
-                              size="sm"
-                              className={`shrink-0 text-xs font-semibold ${uploaded ? 'border-accent/30 text-accent hover:bg-accent/10' : ''}`}
-                              onClick={() => simulateUpload(doc.key)}
-                            >
-                              {uploaded ? 'Replace' : 'Browse'}
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {step === 2 && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground mb-6">Select all applicable vehicle categories you intend to onboard to your fleet. This anchors your EV adoption targets.</p>
-                    
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      {VEHICLE_CATEGORIES.map(cat => {
-                        const selected = selectedCategories.includes(cat);
-                        const labels: Record<string, string> = {
-                          '2W': 'Two-Wheeler',
-                          '3W-Passenger': 'Three-Wheeler (Passenger)',
-                          '3W-LCV': 'Three-Wheeler (Light Commercial)',
-                          '4W-Passenger': 'Four-Wheeler (Passenger)',
-                          '4W-Carrier': 'Four-Wheeler (Goods Carrier)',
-                        };
-                        const evTargets: Record<string, string> = {
-                          '2W': '100% EV from Day 1',
-                          '3W-Passenger': '10% → 100% over 5 years',
-                          '3W-LCV': '10% → 100% over 5 years',
-                          '4W-Passenger': '5% → 100% over 5 years',
-                          '4W-Carrier': '5% → 100% over 5 years',
-                        };
-                        
-                        return (
-                          <button
-                            key={cat}
-                            onClick={() => toggleCategory(cat)}
-                            className={`rounded-xl border p-4 text-left transition-all ${
-                              selected
-                                ? 'bg-primary border-primary shadow-md text-primary-foreground transform scale-[1.02]'
-                                : 'bg-card border-border hover:border-primary/40 text-foreground'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between mb-2">
-                              <div>
-                                <p className="font-heading font-bold">{cat}</p>
-                                <p className={`text-xs mt-0.5 ${selected ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>{labels[cat]}</p>
-                              </div>
-                              <div className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                                selected ? 'bg-accent border-accent text-accent-foreground' : 'border-muted-foreground/30'
-                              }`}>
-                                {selected && <Check className="h-3 w-3" />}
-                              </div>
-                            </div>
-                            <div className={`text-[11px] mt-4 flex items-center gap-1.5 px-2 py-1 rounded-md w-fit ${
-                              selected ? 'bg-primary-foreground/10 text-primary-foreground' : 'bg-secondary text-muted-foreground'
-                            }`}>
-                              <Leaf className="h-3 w-3" /> {evTargets[cat]} Target
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {step === 3 && (
-                  <div className="space-y-6 pb-8">
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      {/* Company Info Box */}
-                      <div className="rounded-xl border p-5 bg-card shadow-sm">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Building2 className="w-4 h-4 text-muted-foreground" />
-                          <h3 className="font-semibold text-sm">Company Summary</h3>
-                        </div>
-                        <div className="space-y-2.5 text-xs text-muted-foreground">
-                          <p className="flex justify-between"><span className="opacity-70">Name</span> <span className="text-foreground font-medium truncate max-w-[120px]">{companyName}</span></p>
-                          <p className="flex justify-between"><span className="opacity-70">Role</span> <span className="text-foreground font-medium">{companyType}</span></p>
-                          <p className="flex justify-between"><span className="opacity-70">CIN</span> <span className="text-foreground font-medium truncate max-w-[120px]">{cin}</span></p>
-                          <p className="flex justify-between"><span className="opacity-70">Nodal Officer</span> <span className="text-foreground font-medium truncate max-w-[120px]">{contactName}</span></p>
-                          <p className="flex justify-between"><span className="opacity-70">Nodal Phone</span> <span className="text-foreground font-medium">{contactPhone}</span></p>
-                        </div>
-                      </div>
-
-                      {/* Fleet Info Box */}
-                      <div className="rounded-xl border p-5 bg-card shadow-sm">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Truck className="w-4 h-4 text-muted-foreground" />
-                          <h3 className="font-semibold text-sm">Fleet Categories</h3>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedCategories.length === 0 ? (
-                            <span className="text-xs text-muted-foreground">None selected</span>
-                          ) : (
-                            selectedCategories.map(cat => (
-                              <span key={cat} className="text-[10px] font-bold px-2 py-1 rounded-md bg-accent/10 text-accent border border-accent/20">
-                                {cat}
-                              </span>
-                            ))
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2 mb-4 mt-6">
-                          <FileUp className="w-4 h-4 text-muted-foreground" />
-                          <h3 className="font-semibold text-sm">Documents Uploaded</h3>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                          <Check className="text-accent w-4 h-4" />
-                          {Object.keys(uploadedDocs).length} / {DOCUMENTS.length} uploaded
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Checkbox */}
-                    <div className="bg-secondary/30 border border-border rounded-xl p-5 mt-4">
-                      <div className="flex items-start gap-3">
-                        <Checkbox
-                          id="agree"
-                          checked={agreed}
-                          onCheckedChange={(v) => setAgreed(v === true)}
-                          className="mt-0.5 data-[state=checked]:bg-accent data-[state=checked]:border-accent"
-                        />
-                        <label htmlFor="agree" className="text-xs text-muted-foreground leading-relaxed cursor-pointer -mt-0.5">
-                          I hereby declare that all information provided is true and correct, and I agree to abide by the terms of the <strong className="text-foreground font-semibold">Delhi Motor Vehicle Aggregator & Delivery Service Provider Scheme, 2023</strong> (Notification No. FDC/EV/TPT/2021/02/49957).
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-
-          <div className="pt-6 mt-auto flex items-center justify-between border-t border-border">
-            <Button
-              variant="outline"
-              onClick={step === 0 ? () => navigate('/login') : goPrev}
-              className="gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" /> {step === 0 ? 'Cancel' : 'Back'}
-            </Button>
-
-            {step < 3 ? (
-              <Button variant="accent" onClick={goNext} disabled={!canProceed()} className="gap-2 px-8">
-                Continue <ArrowRight className="h-4 w-4" />
+                {challengeId
+                  ? "Verify and submit application"
+                  : "Submit application"}
               </Button>
-            ) : (
-              <Button variant="accent" onClick={handleSubmit} disabled={!agreed || isSubmitting} className="gap-2 px-8">
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
-                {isSubmitting ? 'Submitting...' : 'Submit to Govt.'}
-              </Button>
-            )}
+              <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
+                By submitting, you confirm that the information and documents
+                provided are accurate.
+              </p>
+            </section>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

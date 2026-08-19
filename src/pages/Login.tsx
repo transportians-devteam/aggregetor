@@ -1,172 +1,182 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { UserRole } from '@/lib/mockData';
-import { Zap, ArrowLeft, Smartphone } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, Loader2, Smartphone, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useAuth, UserRole } from "@/contexts/AuthContext";
+import { requestLoginOtp } from "@/services/authService";
+import { getErrorMessage } from "@/services/api";
+import { cn } from "@/lib/utils";
 
-const tabs: { label: string; role: UserRole; desc: string }[] = [
-  { label: 'Aggregator / DSP', role: 'aggregator', desc: 'Licensed aggregators and delivery service providers' },
-  { label: 'Government Officer', role: 'officer', desc: 'Transport department officials' },
-  { label: 'Law Enforcement', role: 'enforcement', desc: 'Enforcement wing personnel' },
+const roles: Array<{ label: string; role: UserRole; phone?: string }> = [
+  { label: "Aggregator", role: "aggregator" },
+  { label: "DSP", role: "dsp" },
+  { label: "Officer", role: "officer", phone: "9000000001" },
+  { label: "Appellate", role: "appellate_officer", phone: "9000000002" },
+  { label: "Enforcement", role: "enforcement", phone: "9000000003" },
+  { label: "Administrator", role: "admin", phone: "9000000004" },
 ];
 
 export default function Login() {
-  const [activeTab, setActiveTab] = useState<UserRole>('aggregator');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { login } = useAuth();
   const navigate = useNavigate();
+  const { loginDevelopment, loginWithOtp } = useAuth();
+  const [role, setRole] = useState<UserRole>("aggregator");
+  const [phone, setPhone] = useState("");
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [otp, setOtp] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSendOTP = () => {
-    setError(null);
-    if (phone.length === 10) {
-      setOtpSent(true);
-    } else {
-      setError('Please enter a valid 10-digit mobile number.');
-    }
+  const destination = [
+    "officer",
+    "appellate_officer",
+    "enforcement",
+    "admin",
+  ].includes(role)
+    ? "/admin"
+    : "/dashboard";
+
+  const selectRole = (next: (typeof roles)[number]) => {
+    setRole(next.role);
+    setPhone(import.meta.env.DEV ? (next.phone ?? "") : "");
+    setChallengeId(null);
+    setOtp("");
+    setError("");
   };
 
-  const handleVerify = async () => {
-    setError(null);
-    if (otp.length >= 4) {
-      try {
-        await login(phone, activeTab);
-        navigate(activeTab === 'officer' || activeTab === 'enforcement' ? '/admin' : '/dashboard');
-      } catch {
-        setError('Unable to sign in. Check your number and try again.');
+  const submit = async () => {
+    if (!/^\d{10,15}$/.test(phone)) {
+      setError("Enter a valid 10 to 15 digit mobile number.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      if (import.meta.env.DEV) {
+        await loginDevelopment(phone, role);
+        navigate(destination);
+      } else if (!challengeId) {
+        const challenge = await requestLoginOtp(phone, role);
+        setChallengeId(challenge.challengeId);
+      } else {
+        await loginWithOtp(challengeId, otp);
+        navigate(destination);
       }
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, "Unable to sign in."));
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Left panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-primary text-primary-foreground p-12 flex-col justify-between relative overflow-hidden">
-        <div className="grain absolute inset-0" />
-        <div className="relative z-10">
-          <Link to="/" className="inline-flex items-center gap-2 text-primary-foreground/60 text-sm hover:text-primary-foreground transition-colors mb-12">
-            <ArrowLeft className="w-4 h-4" /> Back to Portal
+      <aside className="hidden lg:flex lg:w-1/2 bg-primary text-primary-foreground p-12 flex-col justify-between">
+        <div>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-sm opacity-70 mb-12"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to portal
           </Link>
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center">
-              <Zap className="w-6 h-6 text-accent-foreground" />
-            </div>
-            <div>
-              <p className="font-heading font-bold text-lg">GACP</p>
-              <p className="text-xs text-primary-foreground/50">Government Aggregator Compliance Portal</p>
-            </div>
+            <span className="w-10 h-10 rounded-lg bg-accent grid place-items-center">
+              <Zap className="w-6 h-6" />
+            </span>
+            <strong className="text-xl">GACP</strong>
           </div>
-          <h2 className="font-heading text-3xl font-bold leading-snug">
-            Delhi's journey to
-            <span className="text-accent"> 100% electric</span> mobility starts here.
-          </h2>
-          <p className="mt-4 text-sm text-primary-foreground/50 max-w-md leading-relaxed">
-            Mandatory 100% EV compliance for all licensed aggregators by April 1, 2030.
-            Sign in to track your progress.
+          <h1 className="font-heading text-4xl font-bold leading-tight">
+            Secure access to Delhi's aggregator compliance portal.
+          </h1>
+          <p className="mt-4 opacity-70 max-w-md">
+            Role-aware workflows for operators, reviewing officers, appellate
+            authorities and enforcement teams.
           </p>
         </div>
-        <p className="relative z-10 text-xs text-primary-foreground/30">
-          Transport Department · Govt of NCT of Delhi
+        <p className="text-xs opacity-50">
+          Transport Department · Government of NCT of Delhi
         </p>
-      </div>
-
-      {/* Right panel */}
-      <div className="flex-1 flex items-center justify-center p-6 md:p-12">
-        <div className="w-full max-w-md">
-          <Link to="/" className="lg:hidden inline-flex items-center gap-2 text-muted-foreground text-sm hover:text-foreground mb-8">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </Link>
-
-          <div className="flex items-center justify-between mb-8">
+      </aside>
+      <main className="flex-1 grid place-items-center p-6">
+        <div className="w-full max-w-lg">
+          <div className="flex justify-between items-start mb-7">
             <div>
-              <h1 className="font-heading text-2xl font-bold">Sign in to GACP</h1>
-              <p className="text-sm text-muted-foreground mt-1">Select your role and verify via OTP</p>
+              <h2 className="font-heading text-2xl font-bold">Sign in</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {import.meta.env.DEV
+                  ? "Development access uses registered phone and role."
+                  : "A six-digit OTP will be sent to your registered phone."}
+              </p>
             </div>
-            <Link to="/register" className="text-sm font-medium text-muted-foreground hover:text-foreground">
-              New user? <span className="text-accent">Register</span>
+            <Link to="/register" className="text-sm text-accent font-medium">
+              Apply
             </Link>
           </div>
-
-          {/* Tabs */}
-          <div className="flex gap-1 p-1 bg-secondary rounded-lg mb-8">
-            {tabs.map((t) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-6">
+            {roles.map((item) => (
               <button
-                key={t.role}
-                onClick={() => {
-                  setActiveTab(t.role);
-                  setOtpSent(false);
-                  setOtp('');
-                  setError(null);
-                }}
+                key={item.role}
+                onClick={() => selectRole(item)}
                 className={cn(
-                  "flex-1 px-3 py-2 rounded-md text-xs font-medium transition-all",
-                  activeTab === t.role
-                    ? "bg-card shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                  "px-3 py-2 rounded-lg border text-xs font-semibold",
+                  role === item.role
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card border-border",
                 )}
               >
-                {t.label}
+                {item.label}
               </button>
             ))}
           </div>
-
-          <p className="text-xs text-muted-foreground mb-6">
-            {tabs.find((t) => t.role === activeTab)?.desc}
-          </p>
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Mobile Number</label>
-              <div className="flex gap-2">
-                <div className="flex items-center px-3 bg-secondary rounded-lg text-sm text-muted-foreground">+91</div>
-                <Input
-                  type="tel"
-                  placeholder="Enter 10-digit mobile number"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  maxLength={10}
-                  className="flex-1"
-                />
-              </div>
+          <label className="text-xs font-medium text-muted-foreground">
+            Mobile number
+          </label>
+          <Input
+            className="mt-1.5"
+            value={phone}
+            onChange={(event) =>
+              setPhone(event.target.value.replace(/\D/g, ""))
+            }
+            placeholder="10 to 15 digits"
+            maxLength={15}
+            disabled={Boolean(challengeId)}
+          />
+          {challengeId && (
+            <div className="mt-4">
+              <label className="text-xs font-medium text-muted-foreground">
+                Six-digit OTP
+              </label>
+              <Input
+                className="mt-1.5"
+                value={otp}
+                onChange={(event) =>
+                  setOtp(event.target.value.replace(/\D/g, ""))
+                }
+                maxLength={6}
+                placeholder="000000"
+              />
             </div>
-
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-            {!otpSent ? (
-              <Button variant="accent" className="w-full gap-2" onClick={handleSendOTP}>
-                <Smartphone className="w-4 h-4" /> Send OTP
-              </Button>
+          )}
+          {error && <p className="text-sm text-destructive mt-3">{error}</p>}
+          <Button
+            variant="accent"
+            className="w-full mt-5 gap-2"
+            onClick={submit}
+            disabled={busy || (Boolean(challengeId) && otp.length !== 6)}
+          >
+            {busy ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Enter OTP</label>
-                  <Input
-                    type="text"
-                    placeholder="Enter 6-digit OTP"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    maxLength={6}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1.5">Demo: enter any 4+ digit code</p>
-                </div>
-                <Button variant="accent" className="w-full" onClick={handleVerify} disabled={otp.length < 4}>
-                  Verify & Sign In
-                </Button>
-              </>
+              <Smartphone className="w-4 h-4" />
             )}
-          </div>
-
-          <p className="text-[10px] text-muted-foreground text-center mt-8 leading-relaxed">
-            By signing in, you agree to the Terms of Service of the Transport Department, Govt of NCT of Delhi.
-            This is a secure government portal.
-          </p>
+            {import.meta.env.DEV
+              ? "Sign in"
+              : challengeId
+                ? "Verify OTP"
+                : "Send OTP"}
+          </Button>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

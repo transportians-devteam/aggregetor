@@ -1,89 +1,191 @@
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { Building2, User, FileText, Mail, Phone, MapPin, Edit2, Upload } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Building2, IdCard, Mail, Pencil, Phone, User } from "lucide-react";
+import { toast } from "sonner";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
+import { updateProfile } from "@/services/authService";
+import {
+  listLicenses,
+  listMyApplications,
+} from "@/services/registrationService";
+import { getErrorMessage } from "@/services/api";
 
 export default function Profile() {
+	const { auth, refreshProfile } = useAuth();
+	const [editing, setEditing] = useState(false);
+	const [name, setName] = useState(auth.user?.name ?? "");
+	const [email, setEmail] = useState(auth.user?.email ?? "");
+  const operator = auth.role === "aggregator" || auth.role === "dsp";
+  const applications = useQuery({
+    queryKey: ["my-applications"],
+    queryFn: listMyApplications,
+    enabled: operator,
+  });
+  const licenses = useQuery({
+    queryKey: ["my-licenses"],
+    queryFn: listLicenses,
+    enabled: operator,
+  });
+  const application = applications.data?.[0];
+	const licence = licenses.data?.[0];
+	const saveProfile = useMutation({
+		mutationFn: () => updateProfile({ name, email }),
+		onSuccess: async () => {
+			await refreshProfile();
+			setEditing(false);
+			toast.success("Profile updated");
+		},
+	});
+	const cancelEdit = () => {
+		setName(auth.user?.name ?? "");
+		setEmail(auth.user?.email ?? "");
+		setEditing(false);
+	};
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-heading font-bold text-foreground">My Profile</h1>
-            <p className="text-sm text-muted-foreground mt-1">Company details and compliance officer information</p>
-          </div>
-          <Button variant="outline" size="sm"><Edit2 className="w-4 h-4 mr-2" />Edit Profile</Button>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Company Details */}
-          <div className="glass rounded-xl border border-border p-6 space-y-5">
-            <div className="flex items-center gap-3 pb-4 border-b border-border">
-              <div className="p-2.5 rounded-lg bg-primary/10 text-primary"><Building2 className="w-5 h-5" /></div>
-              <h2 className="font-heading font-semibold">Company Details</h2>
+      <h1 className="font-heading text-2xl font-bold">My profile</h1>
+      <p className="mb-6 text-sm text-muted-foreground">
+        Authenticated identity and registration details held by the portal.
+      </p>
+      {(applications.isError || licenses.isError) && (
+        <p className="mb-4 text-destructive">
+          {getErrorMessage(applications.error || licenses.error)}
+        </p>
+      )}
+      <div className="grid gap-5 md:grid-cols-2">
+        <section className="rounded-xl border bg-card p-5">
+		  <div className="mb-4 flex items-center justify-between gap-3">
+			<h2 className="flex items-center gap-2 font-semibold">
+			  <User className="h-5 w-5 text-primary" />
+			  Identity
+			</h2>
+			{!editing && (
+			  <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+				<Pencil className="mr-1 h-3.5 w-3.5" /> Edit profile
+			  </Button>
+			)}
+		  </div>
+		  {saveProfile.isError && (
+			<p className="mb-3 text-sm text-destructive">
+			  {getErrorMessage(saveProfile.error)}
+			</p>
+		  )}
+		  <dl className="space-y-3 text-sm">
+			<div>
+			  <dt className="text-xs uppercase text-muted-foreground">Name</dt>
+			  <dd>
+				{editing ? (
+				  <Input
+					className="mt-1"
+					value={name}
+					maxLength={150}
+					onChange={(event) => setName(event.target.value)}
+				  />
+				) : (
+				  auth.user?.name
+				)}
+			  </dd>
             </div>
-            {[
-              { label: 'Company Name', value: 'Delhi EV Transit Pvt. Ltd.' },
-              { label: 'License Number', value: 'GACP-2024-00147' },
-              { label: 'GST Number', value: '07AABCT1234F1ZV' },
-              { label: 'PAN Number', value: 'AABCT1234F' },
-              { label: 'Registered Address', value: 'Plot 42, Sector 18, Dwarka, New Delhi — 110075' },
-              { label: 'License Expiry', value: '2027-03-31' },
-              { label: 'Status', value: 'Active' },
-            ].map(item => (
-              <div key={item.label} className="flex justify-between items-start">
-                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{item.label}</span>
-                <span className="text-sm font-medium text-right max-w-[60%]">{item.value}</span>
+            <div>
+              <dt className="flex items-center gap-1 text-xs uppercase text-muted-foreground">
+                <Phone className="h-3 w-3" />
+                Phone
+              </dt>
+              <dd>{auth.user?.phone}</dd>
+            </div>
+            <div>
+              <dt className="flex items-center gap-1 text-xs uppercase text-muted-foreground">
+                <Mail className="h-3 w-3" />
+                Email
+              </dt>
+			  <dd>
+				{editing ? (
+				  <Input
+					className="mt-1"
+					type="email"
+					value={email}
+					maxLength={255}
+					onChange={(event) => setEmail(event.target.value)}
+					placeholder="Email address"
+				  />
+				) : (
+				  auth.user?.email || "Not provided"
+				)}
+			  </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase text-muted-foreground">Role</dt>
+              <dd className="capitalize">{auth.role?.replaceAll("_", " ")}</dd>
+            </div>
+		  </dl>
+		  {editing && (
+			<div className="mt-5 flex gap-2">
+			  <Button
+				onClick={() => saveProfile.mutate()}
+				disabled={!name.trim() || saveProfile.isPending}
+			  >
+				{saveProfile.isPending ? "Saving…" : "Save changes"}
+			  </Button>
+			  <Button variant="outline" onClick={cancelEdit} disabled={saveProfile.isPending}>
+				Cancel
+			  </Button>
+			</div>
+		  )}
+        </section>
+        <section className="rounded-xl border bg-card p-5">
+          <h2 className="mb-4 flex items-center gap-2 font-semibold">
+            <Building2 className="h-5 w-5 text-primary" />
+            Registration
+          </h2>
+          {operator ? (
+            <dl className="space-y-3 text-sm">
+              <div>
+                <dt className="text-xs uppercase text-muted-foreground">
+                  Company
+                </dt>
+                <dd>{application?.companyName ?? "No application"}</dd>
               </div>
-            ))}
-          </div>
-
-          {/* Compliance Officer */}
-          <div className="glass rounded-xl border border-border p-6 space-y-5">
-            <div className="flex items-center gap-3 pb-4 border-b border-border">
-              <div className="p-2.5 rounded-lg bg-primary/10 text-primary"><User className="w-5 h-5" /></div>
-              <h2 className="font-heading font-semibold">Compliance Officer</h2>
-            </div>
-            {[
-              { label: 'Name', value: 'Priya Sharma', icon: User },
-              { label: 'Email', value: 'priya.sharma@delhievtransit.com', icon: Mail },
-              { label: 'Phone', value: '+91 98765 43210', icon: Phone },
-              { label: 'Designation', value: 'Head of Fleet Compliance', icon: Building2 },
-              { label: 'Office Address', value: 'Tower B, 4th Floor, Dwarka', icon: MapPin },
-            ].map(item => (
-              <div key={item.label} className="flex items-center gap-3">
-                <item.icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-xs text-muted-foreground">{item.label}</p>
-                  <p className="text-sm font-medium">{item.value}</p>
+              <div>
+                <dt className="text-xs uppercase text-muted-foreground">
+                  Application
+                </dt>
+                <dd>
+                  {application
+                    ? `${application.applicationNumber} · ${application.status}`
+                    : "Not started"}
+                </dd>
+              </div>
+              <div>
+                <dt className="flex items-center gap-1 text-xs uppercase text-muted-foreground">
+                  <IdCard className="h-3 w-3" />
+                  Licence
+                </dt>
+                <dd>
+                  {licence
+                    ? `${licence.licenseNumber} · ${licence.status}`
+                    : "Not issued"}
+                </dd>
+              </div>
+              {licence && (
+                <div>
+                  <dt className="text-xs uppercase text-muted-foreground">
+                    Validity
+                  </dt>
+                  <dd>
+                    {licence.validFrom} to {licence.validUntil}
+                  </dd>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Documents */}
-        <div className="glass rounded-xl border border-border p-6">
-          <div className="flex items-center gap-3 pb-4 border-b border-border mb-5">
-            <div className="p-2.5 rounded-lg bg-primary/10 text-primary"><FileText className="w-5 h-5" /></div>
-            <h2 className="font-heading font-semibold">Uploaded Documents</h2>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { name: 'GST Certificate', status: 'verified', date: '2024-01-15' },
-              { name: 'PAN Card', status: 'verified', date: '2024-01-15' },
-              { name: 'Aggregator License', status: 'verified', date: '2024-03-01' },
-              { name: 'Bank Guarantee', status: 'pending', date: '2026-03-20' },
-            ].map(doc => (
-              <div key={doc.name} className="border border-border rounded-lg p-4 hover:shadow-sm transition-shadow">
-                <FileText className="w-8 h-8 text-muted-foreground mb-2" />
-                <p className="text-sm font-medium mb-1">{doc.name}</p>
-                <p className="text-xs text-muted-foreground mb-2">Uploaded: {doc.date}</p>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${doc.status === 'verified' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{doc.status}</span>
-              </div>
-            ))}
-          </div>
-          <Button variant="outline" size="sm" className="mt-4"><Upload className="w-4 h-4 mr-2" />Upload New Document</Button>
-        </div>
+              )}
+            </dl>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Authority users do not have an operator registration profile.
+            </p>
+          )}
+        </section>
       </div>
     </DashboardLayout>
   );

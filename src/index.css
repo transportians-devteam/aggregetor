@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -6,8 +6,9 @@
 
 @layer base {
   :root {
-    --font-heading: 'Syne', sans-serif;
-    --font-body: 'DM Sans', sans-serif;
+    --font-heading: "DM Sans", sans-serif;
+    --font-display: "Syne", sans-serif;
+    --font-body: "DM Sans", sans-serif;
 
     --background: 220 14% 97%;
     --foreground: 220 40% 10%;
@@ -68,14 +69,46 @@
     @apply bg-background text-foreground font-body antialiased;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-heading);
+  }
+}
+
+@layer components {
+  .overflow-x-auto > table {
+    min-width: 42rem;
+  }
+
+  @media (max-width: 640px) {
+    .fixed.inset-0 section {
+      max-height: calc(100dvh - 1.5rem);
+      overflow-y: auto;
+    }
+
+    .fixed.inset-0 .grid.grid-cols-3 {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 }
 
 @layer utilities {
   .font-heading {
     font-family: var(--font-heading);
+  }
+  .font-display {
+    font-family: var(--font-display);
   }
   .font-body {
     font-family: var(--font-body);
@@ -89,7 +122,7 @@
     position: relative;
   }
   .grain::after {
-    content: '';
+    content: "";
     position: fixed;
     inset: 0;
     opacity: 0.025;
@@ -105,5 +138,70 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+}
+
+/* Public landing page readability scale. Scoped so portal dashboards keep their compact density. */
+.landing-page .text-\[7px\],
+.landing-page .text-\[8px\],
+.landing-page .text-\[9px\] {
+  font-size: 0.86rem;
+  line-height: 1.2rem;
+}
+
+.landing-page .text-\[10px\] {
+  font-size: 0.94rem;
+  line-height: 1.3rem;
+}
+
+.landing-page .text-\[11px\],
+.landing-page .text-xs {
+  font-size: 1.02rem;
+  line-height: 1.4rem;
+}
+
+.landing-page .text-sm {
+  font-size: 1.17rem;
+  line-height: 1.6rem;
+}
+
+.landing-page .text-lg {
+  font-size: 1.4rem;
+  line-height: 1.8rem;
+}
+
+.landing-page .text-xl {
+  font-size: 1.56rem;
+  line-height: 1.9rem;
+}
+
+.landing-page .text-2xl {
+  font-size: 1.875rem;
+  line-height: 2.2rem;
+}
+
+.landing-page .text-3xl {
+  font-size: 2.34rem;
+  line-height: 2.7rem;
+}
+
+@media (min-width: 768px) {
+  .landing-page .text-\[7px\],
+  .landing-page .text-\[8px\],
+  .landing-page .text-\[9px\] {
+    font-size: 0.94rem;
+    line-height: 1.3rem;
+  }
+
+  .landing-page .text-\[10px\],
+  .landing-page .text-\[11px\],
+  .landing-page .text-xs {
+    font-size: 1.09rem;
+    line-height: 1.5rem;
+  }
+
+  .landing-page .text-sm {
+    font-size: 1.25rem;
+    line-height: 1.7rem;
   }
 }

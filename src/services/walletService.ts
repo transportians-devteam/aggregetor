@@ -1,24 +1,95 @@
-import api from './api';
+import api, { idempotencyKey } from "./api";
 
-export interface TransactionDto {
-  id: number;
+export interface Wallet {
+  id: string;
+  availableBalance: number;
+  heldBalance: number;
+  currency: string;
+}
+
+export interface WalletEntry {
+  id: string;
+  direction: string;
+  type: string;
   amount: number;
-  transactionType: string;
-  description: string;
+  availableBalanceAfter: number;
+  heldBalanceAfter: number;
+  referenceType: string;
+  referenceId: string;
   createdAt: string;
 }
 
-export interface WalletDto {
-  id: number;
-  balance: number;
-  transactions: TransactionDto[];
+export interface PaymentIntent {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  checkoutUrl: string;
+  providerOrderId: string;
 }
 
-export async function getMyWallet(): Promise<WalletDto> {
-  const response = await api.get('/wallets/me');
-  return response.data as WalletDto;
+export interface VehicleFundingQuote {
+  vehicleId: string;
+  securityDeposit: number;
+  onboardingFee: number;
+  totalRequired: number;
+  availableBalance: number;
+  shortfall: number;
+  sufficientBalance: boolean;
 }
 
-export async function deductWallet(amount: number, description: string): Promise<void> {
-  await api.post('/wallets/deduct', { amount, description });
-}
+export const getWallet = async (): Promise<Wallet> =>
+  (await api.get("/wallet")).data;
+export const getWalletEntries = async (): Promise<WalletEntry[]> =>
+  (await api.get("/wallet/entries")).data;
+export const getVehicleFundingQuote = async (
+  vehicleId: string,
+): Promise<VehicleFundingQuote> =>
+  (await api.get(`/wallet/vehicles/${vehicleId}/funding-quote`)).data;
+
+export const createTopUp = async (amount: number): Promise<PaymentIntent> =>
+  (
+    await api.post(
+      "/wallet/top-ups",
+      { amount },
+      { headers: { "Idempotency-Key": idempotencyKey("topup") } },
+    )
+  ).data;
+
+export const completeDevelopmentPayment = async (
+  intentId: string,
+): Promise<Wallet> =>
+  (await api.post(`/dev/payments/${intentId}/complete`)).data;
+
+export const fundVehicle = async (vehicleId: string): Promise<Wallet> =>
+  (
+    await api.post(`/wallet/vehicles/${vehicleId}/fund`, undefined, {
+      headers: { "Idempotency-Key": idempotencyKey(`vehicle-${vehicleId}`) },
+    })
+  ).data;
+
+export const payPenalty = async (penaltyId: string): Promise<Wallet> =>
+  (
+    await api.post(`/wallet/penalties/${penaltyId}/pay`, undefined, {
+      headers: { "Idempotency-Key": idempotencyKey(`penalty-${penaltyId}`) },
+    })
+  ).data;
+
+export const releaseVehicleDeposit = async (
+  vehicleId: string,
+): Promise<void> => {
+  await api.post(
+    `/admin/wallet/deposits/vehicles/${vehicleId}/release`,
+    undefined,
+    { headers: { "Idempotency-Key": idempotencyKey(`release-${vehicleId}`) } },
+  );
+};
+export const forfeitVehicleDeposit = async (
+  vehicleId: string,
+): Promise<void> => {
+  await api.post(
+    `/admin/wallet/deposits/vehicles/${vehicleId}/forfeit`,
+    undefined,
+    { headers: { "Idempotency-Key": idempotencyKey(`forfeit-${vehicleId}`) } },
+  );
+};

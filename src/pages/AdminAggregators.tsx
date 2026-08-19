@@ -1,151 +1,457 @@
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { formatINR } from '@/lib/mockData';
-import { Badge } from '@/components/ui/badge';
-import { Building2, ArrowRight, Search, Leaf, Car, Wallet, Shield, Filter } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getAdminStats } from '@/services/adminService';
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import {
+  CalendarDays,
+  Car,
+  ChevronLeft,
+  ChevronRight,
+  IdCard,
+  Route,
+  Users,
+} from "lucide-react";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { StatCard } from "@/components/StatCard";
+import {
+  getGovernmentMis,
+  getGovernmentMisDrivers,
+  getGovernmentMisLicenses,
+  getGovernmentMisTrips,
+  getGovernmentMisVehicles,
+  type MisDriver,
+  type MisLicense,
+  type MisPage,
+  type MisTrip,
+  type MisVehicle,
+} from "@/services/reportingService";
+import { getErrorMessage } from "@/services/api";
+
+type DetailTab = "vehicles" | "drivers" | "trips" | "licenses";
+const dateTime = (value: string) => new Date(value).toLocaleString();
+const date = (value: string | null) =>
+  value ? new Date(`${value}T00:00:00`).toLocaleDateString() : "—";
+const status = (value: string) => value.replaceAll("_", " ");
+
+function EmptyRow({ columns }: { columns: number }) {
+  return (
+    <tr>
+      <td
+        colSpan={columns}
+        className="p-10 text-center text-sm text-muted-foreground"
+      >
+        No records found in the selected date range.
+      </td>
+    </tr>
+  );
+}
+function VehiclesTable({ rows }: { rows: MisVehicle[] }) {
+  return (
+    <table className="w-full min-w-[1050px] text-left text-sm">
+      <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
+        <tr>
+          <th className="p-3">Operator</th>
+          <th>Registration</th>
+		  <th>State</th>
+          <th>Category</th>
+          <th>EV</th>
+          <th>Status</th>
+          <th>Registration</th>
+          <th>PUCC</th>
+          <th>Insurance</th>
+		  <th>Fitness</th>
+		  <th>Tax</th>
+		  <th>Permit</th>
+          <th>Challan</th>
+          <th>Last activity</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.id} className="border-t">
+            <td className="p-3">
+              <b>{row.operatorName}</b>
+              <small className="block text-muted-foreground">
+                User #{row.ownerUserId}
+              </small>
+            </td>
+            <td className="font-medium">{row.registrationNumber}</td>
+			<td>{row.stateCode ?? "—"}</td>
+            <td>{row.category}</td>
+            <td>
+              {row.electric === null
+                ? "Unknown"
+                : row.electric
+                  ? "Electric"
+                  : "Non-EV"}
+            </td>
+            <td>
+              <span className="rounded-full bg-muted px-2 py-1 text-xs">
+                {status(row.status)}
+              </span>
+              {row.rejectionReason && (
+                <small className="mt-1 block max-w-48 text-destructive">
+                  {row.rejectionReason}
+                </small>
+              )}
+            </td>
+            <td>{date(row.registrationValidUntil)}</td>
+            <td>{date(row.pucValidUntil)}</td>
+            <td>{date(row.insuranceValidUntil)}</td>
+			<td>{date(row.fitnessValidUntil)}</td>
+			<td>{date(row.taxValidUntil)}</td>
+			<td>{date(row.permitValidUntil)}</td>
+            <td>
+              {row.challanClear === null
+				? "Not verified"
+                : row.challanClear
+                  ? "Clear"
+				  : "Outstanding"}
+            </td>
+            <td>{dateTime(row.updatedAt)}</td>
+          </tr>
+        ))}
+		{rows.length === 0 && <EmptyRow columns={14} />}
+      </tbody>
+    </table>
+  );
+}
+function DriversTable({ rows }: { rows: MisDriver[] }) {
+  return (
+    <table className="w-full min-w-[900px] text-left text-sm">
+      <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
+        <tr>
+          <th className="p-3">Operator</th>
+          <th>Driver</th>
+          <th>Licence</th>
+          <th>Licence valid</th>
+          <th>PSV badge</th>
+          <th>PSV valid</th>
+          <th>Status</th>
+          <th>Last activity</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.id} className="border-t">
+            <td className="p-3">
+              <b>{row.operatorName}</b>
+              <small className="block text-muted-foreground">
+                User #{row.ownerUserId}
+              </small>
+            </td>
+            <td>{row.driverName ?? "—"}</td>
+            <td className="font-medium">{row.licenseNumber}</td>
+            <td>{date(row.licenseValidUntil)}</td>
+            <td>{row.psvBadgeNumber ?? "—"}</td>
+            <td>{date(row.psvBadgeValidUntil)}</td>
+            <td>
+              <span className="rounded-full bg-muted px-2 py-1 text-xs">
+                {status(row.status)}
+              </span>
+              {row.rejectionReason && (
+                <small className="mt-1 block max-w-48 text-destructive">
+                  {row.rejectionReason}
+                </small>
+              )}
+            </td>
+            <td>{dateTime(row.updatedAt)}</td>
+          </tr>
+        ))}
+        {rows.length === 0 && <EmptyRow columns={8} />}
+      </tbody>
+    </table>
+  );
+}
+function TripsTable({ rows }: { rows: MisTrip[] }) {
+  return (
+    <table className="w-full min-w-[950px] text-left text-sm">
+      <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
+        <tr>
+          <th className="p-3">Operator</th>
+          <th>Trip</th>
+          <th>Vehicle</th>
+          <th>Driver</th>
+          <th>Started</th>
+          <th>Duration</th>
+          <th>Distance</th>
+          <th>Fare</th>
+          <th>Rating</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.id} className="border-t">
+            <td className="p-3">
+              <b>{row.operatorName}</b>
+              <small className="block text-muted-foreground">
+                User #{row.ownerUserId}
+              </small>
+            </td>
+            <td className="font-medium">{row.tripId}</td>
+            <td>{row.vehicleRegistration}</td>
+            <td>
+              {row.driverName ?? row.driverLicense}
+              <small className="block text-muted-foreground">
+                {row.driverLicense}
+              </small>
+            </td>
+            <td>{dateTime(row.startedAt)}</td>
+            <td>{row.durationMinutes} min</td>
+            <td>{Number(row.distanceKm).toFixed(2)} km</td>
+            <td>₹{Number(row.fareAmount).toFixed(2)}</td>
+            <td>
+              {row.driverRating === null
+                ? "—"
+                : Number(row.driverRating).toFixed(1)}
+            </td>
+          </tr>
+        ))}
+        {rows.length === 0 && <EmptyRow columns={9} />}
+      </tbody>
+    </table>
+  );
+}
+function LicensesTable({ rows }: { rows: MisLicense[] }) {
+  return (
+    <table className="w-full min-w-[780px] text-left text-sm">
+      <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
+        <tr>
+          <th className="p-3">Operator</th>
+          <th>Licence number</th>
+          <th>Issued</th>
+          <th>Valid from</th>
+          <th>Valid until</th>
+          <th>Status</th>
+          <th>Application</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.id} className="border-t">
+            <td className="p-3">
+              <b>{row.operatorName}</b>
+              <small className="block text-muted-foreground">
+                User #{row.holderUserId}
+              </small>
+            </td>
+            <td className="font-medium">{row.licenseNumber}</td>
+            <td>{date(row.issuedOn)}</td>
+            <td>{date(row.validFrom)}</td>
+            <td>{date(row.validUntil)}</td>
+            <td>
+              <span className="rounded-full bg-muted px-2 py-1 text-xs">
+                {status(row.status)}
+              </span>
+            </td>
+            <td className="font-mono text-xs">{row.applicationId}</td>
+          </tr>
+        ))}
+        {rows.length === 0 && <EmptyRow columns={7} />}
+      </tbody>
+    </table>
+  );
+}
+
+function Pagination({
+  data,
+  onPage,
+}: {
+  data: MisPage<unknown>;
+  onPage: (page: number) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-sm">
+      <p className="text-muted-foreground">
+        {data.totalElements} records · page{" "}
+        {data.totalPages === 0 ? 0 : data.page + 1} of {data.totalPages}
+      </p>
+      <div className="flex gap-2">
+        <button
+          disabled={data.page === 0}
+          onClick={() => onPage(data.page - 1)}
+          className="inline-flex items-center rounded-lg border px-3 py-1.5 disabled:opacity-40"
+        >
+          <ChevronLeft className="mr-1 h-4 w-4" />
+          Previous
+        </button>
+        <button
+          disabled={data.page + 1 >= data.totalPages}
+          onClick={() => onPage(data.page + 1)}
+          className="inline-flex items-center rounded-lg border px-3 py-1.5 disabled:opacity-40"
+        >
+          Next
+          <ChevronRight className="ml-1 h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminAggregators() {
-  const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<'All' | 'Aggregator' | 'DSP'>('All');
-
-  const { data: stats } = useQuery({
-    queryKey: ['adminStats'],
-    queryFn: getAdminStats,
+  const now = new Date();
+  const monthAgo = new Date();
+  monthAgo.setDate(monthAgo.getDate() - 30);
+  const [from, setFrom] = useState(monthAgo.toISOString().slice(0, 10));
+  const [to, setTo] = useState(now.toISOString().slice(0, 10));
+  const [tab, setTab] = useState<DetailTab>("vehicles");
+  const [page, setPage] = useState(0);
+  const validRange = Boolean(from && to && from <= to);
+  const summary = useQuery({
+    queryKey: ["government-mis", from, to],
+    queryFn: () => getGovernmentMis(from, to),
+    enabled: validRange,
   });
-
-  const aggregators = (stats?.aggregators || []).map(agg => ({
-    ...agg,
-    type: 'Aggregator', 
-    categories: ['2W', '3W', '4W']
-  }));
-
-  const filtered = aggregators
-    .filter(c => filterType === 'All' || c.type === filterType)
-    .filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.licenseNo.toLowerCase().includes(search.toLowerCase()));
-
+  const vehicles = useQuery({
+    queryKey: ["government-mis-vehicles", from, to, page],
+    queryFn: () => getGovernmentMisVehicles(from, to, page),
+    enabled: validRange && tab === "vehicles",
+  });
+  const drivers = useQuery({
+    queryKey: ["government-mis-drivers", from, to, page],
+    queryFn: () => getGovernmentMisDrivers(from, to, page),
+    enabled: validRange && tab === "drivers",
+  });
+  const trips = useQuery({
+    queryKey: ["government-mis-trips", from, to, page],
+    queryFn: () => getGovernmentMisTrips(from, to, page),
+    enabled: validRange && tab === "trips",
+  });
+  const licenses = useQuery({
+    queryKey: ["government-mis-licenses", from, to, page],
+    queryFn: () => getGovernmentMisLicenses(from, to, page),
+    enabled: validRange && tab === "licenses",
+  });
+  const data = summary.data;
+  const activeQuery =
+    tab === "vehicles"
+      ? vehicles
+      : tab === "drivers"
+        ? drivers
+        : tab === "trips"
+          ? trips
+          : licenses;
+  const changeDate = (setter: (value: string) => void) => (value: string) => {
+    setter(value);
+    setPage(0);
+  };
+  const selectTab = (next: DetailTab) => {
+    setTab(next);
+    setPage(0);
+  };
+  const error = summary.error ?? activeQuery.error;
   return (
     <DashboardLayout>
-      <div className="mb-6">
-        <h1 className="font-heading text-2xl font-bold">Aggregators &amp; DSPs</h1>
-        <p className="text-sm text-muted-foreground">All licensed aggregators and delivery service providers operating in NCT of Delhi.</p>
+      <h1 className="font-heading text-2xl font-bold">Government MIS</h1>
+      <p className="mb-5 text-sm text-muted-foreground">
+        Regulatory snapshot with date-filtered fleet, driver, trip and licence
+        drill-down.
+      </p>
+      <div className="mb-6 flex flex-wrap items-end gap-3 rounded-xl border bg-card p-4">
+        <CalendarDays className="mb-2 hidden h-5 w-5 text-primary sm:block" />
+        <label className="text-xs font-medium">
+          From
+          <input
+            type="date"
+            value={from}
+            max={to}
+            onChange={(event) => changeDate(setFrom)(event.target.value)}
+            className="mt-1 block rounded border bg-background p-2 text-sm"
+          />
+        </label>
+        <label className="text-xs font-medium">
+          To
+          <input
+            type="date"
+            value={to}
+            min={from}
+            onChange={(event) => changeDate(setTo)(event.target.value)}
+            className="mt-1 block rounded border bg-background p-2 text-sm"
+          />
+        </label>
+        <p className="text-xs text-muted-foreground sm:ml-2">
+          Vehicle and driver tabs use last activity; trips use start time;
+          licences use issue date.
+        </p>
       </div>
-
-      {/* Summary */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="glass rounded-xl p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterType('All')}>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Total Licensed</p>
-          <p className="text-2xl font-heading font-bold mt-1">{aggregators.length}</p>
-        </div>
-        <div className="glass rounded-xl p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterType('Aggregator')}>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Aggregators</p>
-          <p className="text-2xl font-heading font-bold mt-1 text-blue-600">{aggregators.filter(c => c.type === 'Aggregator').length}</p>
-        </div>
-        <div className="glass rounded-xl p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterType('DSP')}>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Delivery SPs</p>
-          <p className="text-2xl font-heading font-bold mt-1 text-purple-600">{aggregators.filter(c => c.type === 'DSP').length}</p>
-        </div>
+      {!validRange && (
+        <p className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          Choose a valid date range.
+        </p>
+      )}
+      {error && (
+        <p className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {getErrorMessage(error)}
+        </p>
+      )}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Active licences"
+          value={(data?.activeLicenses ?? 0).toString()}
+          icon={<IdCard className="h-5 w-5" />}
+          trend="Current government snapshot"
+        />
+        <StatCard
+          label="Active vehicles"
+          value={(data?.activeVehicles ?? 0).toString()}
+          icon={<Car className="h-5 w-5" />}
+          trend={`${data?.offboardedVehicles ?? 0} currently offboarded`}
+        />
+        <StatCard
+          label="Active drivers"
+          value={(data?.activeDrivers ?? 0).toString()}
+          icon={<Users className="h-5 w-5" />}
+          trend={`${data?.offboardedDrivers ?? 0} currently offboarded`}
+        />
+        <StatCard
+          label="Trips in range"
+          value={(data?.trips ?? 0).toString()}
+          icon={<Route className="h-5 w-5" />}
+          trend={`${from} to ${to}`}
+        />
       </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-accent/30" placeholder="Search by name or license..." value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
-        <div className="flex gap-1 items-center">
-          <Filter className="w-4 h-4 text-muted-foreground" />
-          {(['All', 'Aggregator', 'DSP'] as const).map(t => (
-            <button key={t} onClick={() => setFilterType(t)} className={cn("px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all", filterType === t ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border text-muted-foreground hover:border-primary/40')}>{t}</button>
+      <section className="mt-7 overflow-hidden rounded-xl border bg-card">
+        <div className="flex overflow-x-auto border-b p-2">
+          {(
+            [
+              ["vehicles", "Vehicles"],
+              ["drivers", "Drivers"],
+              ["trips", "Trips"],
+              ["licenses", "Licences"],
+            ] as Array<[DetailTab, string]>
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => selectTab(value)}
+              className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold ${tab === value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+            >
+              {label}
+            </button>
           ))}
         </div>
-      </div>
-
-      {/* Row Cards */}
-      <div className="space-y-3">
-        {filtered.map(c => (
-          <Link
-            key={c.id}
-            to={`/admin/aggregators/${c.id}`}
-            className="glass rounded-xl p-5 hover:shadow-lg transition-all group block"
-          >
-            <div className="flex items-center gap-5">
-              {/* Avatar + Name */}
-              <div className="flex items-center gap-3 min-w-[180px] shrink-0">
-                <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center font-heading font-bold text-base shrink-0", c.type === 'DSP' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700')}>
-                  {c.name.slice(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-heading font-bold">{c.name}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <Badge variant="outline" className="text-[9px] px-1.5 py-0">{c.type}</Badge>
-                    <Badge className={cn("text-[9px] px-1.5 py-0 border", c.licenseStatus === 'Active' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200')}>{c.licenseStatus}</Badge>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stats Strip */}
-              <div className="hidden md:flex items-center gap-6 flex-1 min-w-0 text-xs">
-                <div className="text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Fleet</p>
-                  <p className="font-heading font-bold text-base mt-0.5">{c.fleetSize.toLocaleString('en-IN')}</p>
-                </div>
-                <div className="w-px h-8 bg-border" />
-                <div className="text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">EV</p>
-                  <p className="font-heading font-bold text-base mt-0.5 text-accent">{c.evPercent}%</p>
-                </div>
-                <div className="w-px h-8 bg-border" />
-                <div className="text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Compliance</p>
-                  <p className={cn("font-heading font-bold text-base mt-0.5", c.complianceRate >= 75 ? 'text-emerald-600' : c.complianceRate >= 50 ? 'text-amber-600' : 'text-red-600')}>{c.complianceRate}%</p>
-                </div>
-                <div className="w-px h-8 bg-border" />
-                <div className="text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Wallet</p>
-                  <p className="font-heading font-bold text-base mt-0.5">{formatINR(c.walletBalance)}</p>
-                </div>
-              </div>
-
-              {/* EV Progress + Categories */}
-              <div className="hidden lg:flex flex-col gap-2 min-w-[200px] shrink-0">
-                <div>
-                  <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
-                    <span>EV Target</span>
-                    <span className="font-bold text-foreground">{c.evPercent}% / 50%</span>
-                  </div>
-                  <div className="w-full bg-secondary rounded-full h-1.5">
-                    <div className={cn("h-1.5 rounded-full transition-all", c.evPercent >= 50 ? 'bg-accent' : c.evPercent >= 25 ? 'bg-amber-400' : 'bg-red-400')} style={{ width: `${Math.min((c.evPercent / 50) * 100, 100)}%` }} />
-                  </div>
-                </div>
-                <div className="flex gap-1 flex-wrap">
-                  {c.categories.map(cat => (
-                    <span key={cat} className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">{cat}</span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Arrow */}
-              <div className="shrink-0 ml-auto pl-4">
-                <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                  <ArrowRight className="w-4 h-4" />
-                </div>
-              </div>
-            </div>
-
-            {/* Mobile-only stats (shown below on small screens) */}
-            <div className="md:hidden grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-border/50 text-xs text-center">
-              <div><p className="text-[10px] text-muted-foreground">Fleet</p><p className="font-bold">{c.fleetSize.toLocaleString('en-IN')}</p></div>
-              <div><p className="text-[10px] text-muted-foreground">EV</p><p className="font-bold text-accent">{c.evPercent}%</p></div>
-              <div><p className="text-[10px] text-muted-foreground">Compliance</p><p className="font-bold">{c.complianceRate}%</p></div>
-              <div><p className="text-[10px] text-muted-foreground">Wallet</p><p className="font-bold">{formatINR(c.walletBalance)}</p></div>
-            </div>
-          </Link>
-        ))}
-      </div>
+        {activeQuery.isLoading ? (
+          <div className="p-10 text-center text-sm text-muted-foreground">
+            Loading detailed records…
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            {tab === "vehicles" && (
+              <VehiclesTable rows={vehicles.data?.items ?? []} />
+            )}
+            {tab === "drivers" && (
+              <DriversTable rows={drivers.data?.items ?? []} />
+            )}
+            {tab === "trips" && <TripsTable rows={trips.data?.items ?? []} />}
+            {tab === "licenses" && (
+              <LicensesTable rows={licenses.data?.items ?? []} />
+            )}
+          </div>
+        )}
+        {activeQuery.data && (
+          <Pagination
+            data={activeQuery.data as MisPage<unknown>}
+            onPage={setPage}
+          />
+        )}
+      </section>
     </DashboardLayout>
   );
 }

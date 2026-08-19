@@ -1,36 +1,93 @@
-import api from './api';
+import api from "./api";
 
-export interface VehicleDto {
-  id: number;
+export type VehicleCategory = "2W" | "3W" | "4W";
+
+export interface FleetVehicle {
+  id: string;
   registrationNumber: string;
-  vehicleClass: string;
-  category: string;
-  fuelType: string;
-  maker: string;
-  model: string;
-  insuranceStatus: string;
-  puccStatus: string;
+  category: VehicleCategory;
   status: string;
-  licenseAmount: number;
-  discountAmount: number;
-  totalAmount: number;
+  registrationValidUntil: string | null;
+  pucValidUntil: string | null;
+  insuranceValidUntil: string | null;
+	fitnessValidUntil: string | null;
+	taxValidUntil: string | null;
+	permitValidUntil: string | null;
+  challanClear: boolean | null;
+  electric: boolean | null;
+  outstandingChallanAmount: number | null;
+  challanIntimatedOn: string | null;
+  vahanRegistrationStatus: string | null;
+	vahanStateCode: string | null;
+  vahanVehicleClass: string | null;
+  vahanFuelType: string | null;
+  vahanSource: "VAHAN" | "LEGACY" | string | null;
+  vahanCheckedAt: string | null;
+  lastComplianceCheckedAt: string | null;
+  rejectionReason: string | null;
+  createdAt: string;
+  declarationPeriodStart: string;
+  declarationPeriodEnd: string;
 }
 
-export interface VehicleOnboardRequest {
-  registrationNumber: string;
-  vehicleClass?: string;
-  category?: string;
-  fuelType?: string;
-  maker?: string;
-  model?: string;
+export interface FleetDeclarationWindow {
+  periodStart: string;
+  periodEnd: string;
+  totalVehicles: number;
+  activeVehicles: number;
+  awaitingFunding: number;
+  rejectedVehicles: number;
+  evPercentage: number;
+  requiredEvPercentage: number;
+  evTargetMet: boolean;
+  status: string;
 }
 
-export async function onboardVehicle(request: VehicleOnboardRequest): Promise<VehicleDto> {
-  const response = await api.post('/vehicles/onboard', request);
-  return response.data as VehicleDto;
+export interface VahanIntegrationStatus {
+  source: string;
+  live: boolean;
+  configured: boolean;
 }
 
-export async function getMyVehicles(): Promise<VehicleDto[]> {
-  const response = await api.get('/vehicles');
-  return response.data as VehicleDto[];
+export interface VehicleImportJob {
+  id: string;
+  fileName: string;
+  status: string;
+  totalRows: number;
+  acceptedRows: number;
+  rejectedRows: number;
+  rows?: Array<{
+    rowNumber: number;
+    registrationNumber: string;
+    status: string;
+    reason?: string;
+  }>;
 }
+
+export const onboardVehicle = async (
+  registrationNumber: string,
+  category: VehicleCategory,
+): Promise<FleetVehicle> =>
+  (await api.post("/fleet/vehicles", { registrationNumber, category })).data;
+
+export const getMyVehicles = async (): Promise<FleetVehicle[]> =>
+  (await api.get("/fleet/vehicles")).data;
+export const recheckVehicleVahan = async (
+  vehicleId: string,
+): Promise<FleetVehicle> =>
+  (await api.post(`/fleet/vehicles/${vehicleId}/recheck-vahan`)).data;
+export const getCurrentFleetDeclaration =
+  async (): Promise<FleetDeclarationWindow> =>
+    (await api.get("/fleet/vehicles/declaration-window")).data;
+export const getVahanIntegrationStatus =
+  async (): Promise<VahanIntegrationStatus> =>
+    (await api.get("/fleet/vehicles/vahan-status")).data;
+
+export const importVehicles = async (file: File): Promise<VehicleImportJob> => {
+  const body = new FormData();
+  body.append("file", file);
+  return (await api.post("/fleet/vehicle-imports", body)).data;
+};
+
+export const getVehicleImport = async (id: string): Promise<VehicleImportJob> =>
+  (await api.get(`/fleet/vehicle-imports/${id}`)).data;

@@ -1,20 +1,19 @@
-import api from './api';
+import api from "./api";
 
-export interface CategoryStatDto {
-  label: string;
-  current: number;
-  target: number;
-  status: string;
+export interface OperatorDashboard {
+  applicationStatus: string | null;
+  licenseNumber: string | null;
+  licenseStatus: string | null;
+  licenseValidUntil: string | null;
+  vehicles: Record<string, number>;
+  drivers: Record<string, number>;
+  electricVehicles: number;
+  criticalComplianceAlerts: number;
+  openEnforcementCases: number;
+  unreadNotifications: number;
+  walletAvailableBalance: number;
+  walletHeldBalance: number;
 }
 
-export interface DashboardStatsDto {
-  fleetSize: number;
-  walletBalance: number;
-  evPercent: number;
-  categories: CategoryStatDto[];
-}
-
-export async function getDashboardStats(): Promise<DashboardStatsDto> {
-  const response = await api.get('/dashboard/stats');
-  return response.data as DashboardStatsDto;
-}
+export const getDashboard = async (): Promise<OperatorDashboard> =>
+  (await api.get("/dashboard")).data;
