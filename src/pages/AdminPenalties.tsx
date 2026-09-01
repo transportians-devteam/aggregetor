@@ -1,6 +1,8 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { ListPagination } from "@/components/ListPagination";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   enforcementStatusMessage,
@@ -11,9 +13,11 @@ import {
   decideEnforcementAppeal,
   extendSuspension,
   issuePenalty,
+  issueShowCause,
   listEnforcementCases,
   openCase,
   reviewComplianceResponse,
+  reviewRestorationReport,
   startEnforcementAppeal,
   suspendLicense,
   type EnforcementCase,
@@ -31,6 +35,7 @@ export default function AdminPenalties() {
     queryKey: ["enforcement-cases"],
     queryFn: listEnforcementCases,
   });
+  const pages = useClientPagination(cases.data ?? []);
   const [ownerUserId, setOwnerUserId] = useState("");
   const [violationCode, setViolationCode] = useState("");
   const [description, setDescription] = useState("");
@@ -86,14 +91,19 @@ export default function AdminPenalties() {
             ? { type: penaltyType, amount: Number(amount), dueDate }
             : { type: penaltyType, instruction: reason, dueDate },
         );
+      if (name === "show-cause") return issueShowCause(selected.id, reason);
       if (name === "suspend")
         return suspendLicense(selected.id, Number(days), reason);
       if (name === "extend") return extendSuspension(selected.id, Number(days));
       if (name === "cancel") return cancelLicense(selected.id, reason);
       if (name === "satisfactory")
-        return reviewComplianceResponse(selected.id, true, reason);
+        return reviewComplianceResponse(selected.id, true, reason, Number(days));
       if (name === "unsatisfactory")
-        return reviewComplianceResponse(selected.id, false, reason);
+        return reviewComplianceResponse(selected.id, false, reason, Number(days));
+      if (name === "restoration-pass")
+        return reviewRestorationReport(selected.id, true, reason, Number(days));
+      if (name === "restoration-fail")
+        return reviewRestorationReport(selected.id, false, reason, Number(days));
       if (name === "appeal-start") return startEnforcementAppeal(selected.id);
       return decideEnforcementAppeal(
         selected.id,
@@ -165,7 +175,7 @@ export default function AdminPenalties() {
         </p>
       )}
       <div className="space-y-3">
-        {cases.data?.map((item) => {
+        {pages.pageItems.map((item) => {
           const available = getAuthorityEnforcementActions(
             item,
             auth.role,
@@ -221,6 +231,7 @@ export default function AdminPenalties() {
           </p>
         )}
       </div>
+      <ListPagination page={pages.page} pageSize={pages.pageSize} totalItems={pages.totalItems} onPageChange={pages.setPage} />
 
       {selected && selectedActions && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -264,6 +275,17 @@ export default function AdminPenalties() {
                 )}
               </div>
             )}
+            {selected.restorationSubmittedAt && (
+              <div className="mt-4 rounded-lg border p-4 text-sm">
+                <h3 className="font-semibold">Restoration evidence</h3>
+                <p className="mt-2 whitespace-pre-wrap">
+                  <b>Compliance report:</b> {selected.restorationReport}
+                </p>
+                <p className="mt-2 whitespace-pre-wrap">
+                  <b>Form 4 undertaking:</b> {selected.form4Undertaking}
+                </p>
+              </div>
+            )}
             {selected.appeal && (
               <div className="mt-4 rounded-lg border p-4 text-sm">
                 <h3 className="font-semibold">Appeal evidence</h3>
@@ -290,6 +312,28 @@ export default function AdminPenalties() {
               <p className="mt-4 rounded-lg bg-muted p-3 text-sm text-muted-foreground">
                 {enforcementStatusMessage(selected)}
               </p>
+            )}
+
+            {selectedActions.issueShowCause && (
+              <div className="mt-4 space-y-3 rounded-lg border border-amber-300 bg-amber-50/50 p-4">
+                <h3 className="font-semibold">Issue 15-day show-cause notice</h3>
+                <p className="text-sm text-muted-foreground">
+                  The operator will be notified and must submit a hearing reply within 15 days.
+                </p>
+                <textarea
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="State the violation and corrective action required"
+                  className="min-h-20 w-full rounded border bg-background p-3 text-sm"
+                />
+                <button
+                  disabled={act.isPending || !reason.trim()}
+                  onClick={() => act.mutate("show-cause")}
+                  className="rounded bg-amber-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+                >
+                  Issue show-cause notice
+                </button>
+              </div>
             )}
 
             {selectedActions.issuePenalty && (
@@ -352,6 +396,7 @@ export default function AdminPenalties() {
             )}
 
             {(selectedActions.reviewResponse ||
+              selectedActions.reviewRestoration ||
               selectedActions.suspend ||
               selectedActions.extendSuspension ||
               selectedActions.cancelLicense ||
@@ -361,6 +406,7 @@ export default function AdminPenalties() {
                 {!selectedActions.extendSuspension ||
                 selectedActions.cancelLicense ||
                 selectedActions.reviewResponse ||
+                selectedActions.reviewRestoration ||
                 selectedActions.decideAppeal ? (
                   <textarea
                     value={reason}
@@ -370,11 +416,13 @@ export default function AdminPenalties() {
                   />
                 ) : null}
                 {(selectedActions.suspend ||
-                  selectedActions.extendSuspension) && (
+                  selectedActions.extendSuspension ||
+                  selectedActions.reviewResponse ||
+                  selectedActions.reviewRestoration) && (
                   <input
                     type="number"
-                    min={selectedActions.suspend ? 10 : 1}
-                    max={selectedActions.suspend ? 180 : 170}
+                    min={selectedActions.reviewResponse || selectedActions.suspend ? 10 : 1}
+                    max={180}
                     value={days}
                     onChange={(event) => setDays(event.target.value)}
                     className="w-full rounded border p-2 text-sm sm:w-48"
@@ -396,6 +444,24 @@ export default function AdminPenalties() {
                         className="rounded border px-3 py-2 text-sm disabled:opacity-50"
                       >
                         Response deficient
+                      </button>
+                    </>
+                  )}
+                  {selectedActions.reviewRestoration && (
+                    <>
+                      <button
+                        disabled={act.isPending || !reason.trim()}
+                        onClick={() => act.mutate("restoration-pass")}
+                        className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50"
+                      >
+                        Approve and resume operations
+                      </button>
+                      <button
+                        disabled={act.isPending || !reason.trim() || Number(days) < 1}
+                        onClick={() => act.mutate("restoration-fail")}
+                        className="rounded border px-3 py-2 text-sm disabled:opacity-50"
+                      >
+                        Reject and extend suspension
                       </button>
                     </>
                   )}

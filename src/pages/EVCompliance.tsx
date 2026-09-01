@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, ShieldCheck } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { ListPagination } from "@/components/ListPagination";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { getComplianceFindings } from "@/services/complianceService";
 
 export default function EVCompliance() {
@@ -8,8 +10,8 @@ export default function EVCompliance() {
     queryKey: ["complianceFindings"],
     queryFn: getComplianceFindings,
   });
-  const open =
-	findings.data?.filter((finding) => finding.action !== "AUTO_OFFBOARDED") ?? [];
+  const open = findings.data ?? [];
+  const pages = useClientPagination(findings.data ?? []);
   return (
     <DashboardLayout>
       <div className="mb-6">
@@ -37,13 +39,13 @@ export default function EVCompliance() {
         <div className="glass border rounded-xl p-5">
           <CheckCircle2 className="w-5 h-5 text-green-600" />
           <p className="text-3xl font-bold mt-2">
-			  {findings.data?.filter((f) => f.action === "AUTO_OFFBOARDED").length ?? 0}
+            {findings.data?.filter((f) => f.action === "SHOW_CAUSE_REVIEW").length ?? 0}
           </p>
-			<p className="text-xs text-muted-foreground">System off-boarded</p>
+			<p className="text-xs text-muted-foreground">Pending enforcement review</p>
         </div>
       </div>
       <div className="space-y-3">
-        {findings.data?.map((finding) => (
+        {pages.pageItems.map((finding) => (
           <article
             key={finding.id}
             className="glass border rounded-xl p-4 flex gap-4"
@@ -76,6 +78,7 @@ export default function EVCompliance() {
           </div>
         )}
       </div>
+      <ListPagination page={pages.page} pageSize={pages.pageSize} totalItems={pages.totalItems} onPageChange={pages.setPage} />
     </DashboardLayout>
   );
 }

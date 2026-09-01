@@ -1,12 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Play, ShieldAlert } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { ListPagination } from "@/components/ListPagination";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getComplianceFindings,
   runCompliance,
+  type ComplianceFinding,
 } from "@/services/complianceService";
 import { getErrorMessage } from "@/services/api";
+import { openCase } from "@/services/enforcementService";
 
 export default function AdminEVMonitor() {
   const { auth } = useAuth();
@@ -20,6 +24,19 @@ export default function AdminEVMonitor() {
     onSuccess: () =>
       client.invalidateQueries({ queryKey: ["compliance-findings"] }),
   });
+  const createCase = useMutation({
+    mutationFn: (finding: ComplianceFinding) =>
+      openCase({
+        ownerUserId: finding.ownerUserId,
+        source: "COMPLIANCE",
+        sourceReference: `${finding.subjectId}:${finding.code}`,
+        violationCode: finding.code,
+        description: `${finding.subjectLabel}: ${finding.message}`,
+      }),
+    onSuccess: () =>
+      client.invalidateQueries({ queryKey: ["enforcement-cases"] }),
+  });
+  const pages = useClientPagination(findings.data ?? []);
   const mayRun = auth.role === "enforcement" || auth.role === "admin";
   return (
     <DashboardLayout>
@@ -47,13 +64,13 @@ export default function AdminEVMonitor() {
       {run.data && (
         <p className="mb-4 rounded-lg border bg-card p-3 text-sm">
           Checked {run.data.subjectsChecked} subjects; created{" "}
-          {run.data.findingsCreated} findings; system-offboarded{" "}
-          {run.data.subjectsOffboarded}.
+          {run.data.findingsCreated} findings; immediate off-boardings{" "}
+          {run.data.subjectsOffboarded}. Findings now proceed through enforcement review.
         </p>
       )}
-      {(findings.isError || run.isError) && (
+      {(findings.isError || run.isError || createCase.isError) && (
         <p className="mb-4 text-destructive">
-          {getErrorMessage(findings.error || run.error)}
+          {getErrorMessage(findings.error || run.error || createCase.error)}
         </p>
       )}
       <div className="overflow-x-auto rounded-xl border bg-card">
@@ -66,10 +83,11 @@ export default function AdminEVMonitor() {
               <th className="p-3">Description</th>
               <th className="p-3">Status</th>
               <th className="p-3">Detected</th>
+              {mayRun && <th className="p-3">Enforcement</th>}
             </tr>
           </thead>
           <tbody>
-            {findings.data?.map((item) => (
+            {pages.pageItems.map((item) => (
               <tr key={item.id} className="border-t">
                 <td className="p-3">
 				  <b>{item.subjectLabel}</b>
@@ -90,6 +108,17 @@ export default function AdminEVMonitor() {
                 <td className="p-3 text-xs">
                   {new Date(item.detectedAt).toLocaleString()}
                 </td>
+                {mayRun && (
+                  <td className="p-3">
+                    <button
+                      disabled={createCase.isPending}
+                      onClick={() => createCase.mutate(item)}
+                      className="whitespace-nowrap rounded border px-3 py-2 text-xs disabled:opacity-50"
+                    >
+                      Open case
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -100,6 +129,7 @@ export default function AdminEVMonitor() {
             No findings.
           </div>
         )}
+        <ListPagination page={pages.page} pageSize={pages.pageSize} totalItems={pages.totalItems} onPageChange={pages.setPage} />
       </div>
     </DashboardLayout>
   );

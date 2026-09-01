@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { ListPagination } from "@/components/ListPagination";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getErrorMessage } from "@/services/api";
@@ -146,6 +148,47 @@ function ContentEditor({
   );
 }
 
+function ContentSectionList({
+  section,
+  rows,
+  onEdit,
+  onDelete,
+}: {
+  section: ContentSection;
+  rows: PortalContentItem[];
+  onEdit: (item: PortalContentItem) => void;
+  onDelete: (id: string) => void;
+}) {
+  const pages = useClientPagination(rows);
+  if (!rows.length) return null;
+  return (
+    <section>
+      <h2 className="mb-2 text-sm font-bold tracking-wide text-muted-foreground">
+        {section}
+      </h2>
+      <div className="overflow-hidden rounded-xl border bg-card">
+        {pages.pageItems.map((item) => (
+          <div key={item.id} className="flex items-start gap-3 border-b p-4 last:border-0">
+            <button className="min-w-0 flex-1 text-left" onClick={() => onEdit(item)}>
+              <b className="block truncate text-sm">{item.title}</b>
+              <p className="truncate text-xs text-muted-foreground">
+                {item.value ?? item.body ?? item.label}
+              </p>
+            </button>
+            <span className={`rounded-full px-2 py-1 text-[10px] ${item.active ? "bg-emerald-100 text-emerald-800" : "bg-muted text-muted-foreground"}`}>
+              {item.active ? "Visible" : "Hidden"}
+            </span>
+            <button aria-label={`Delete ${item.title}`} onClick={() => onDelete(item.id)} className="rounded p-1 text-destructive hover:bg-destructive/10">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+        <ListPagination page={pages.page} pageSize={pages.pageSize} totalItems={pages.totalItems} onPageChange={pages.setPage} />
+      </div>
+    </section>
+  );
+}
+
 export default function AdminContent() {
   const client = useQueryClient();
   const content = useQuery({
@@ -195,43 +238,14 @@ export default function AdminContent() {
         {sections.map((section) => {
           const rows =
             content.data?.filter((item) => item.section === section) ?? [];
-          if (!rows.length) return null;
           return (
-            <section key={section}>
-              <h2 className="mb-2 text-sm font-bold tracking-wide text-muted-foreground">
-                {section}
-              </h2>
-              <div className="overflow-hidden rounded-xl border bg-card">
-                {rows.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-start gap-3 border-b p-4 last:border-0"
-                  >
-                    <button
-                      className="min-w-0 flex-1 text-left"
-                      onClick={() => setEditing(item)}
-                    >
-                      <b className="block truncate text-sm">{item.title}</b>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {item.value ?? item.body ?? item.label}
-                      </p>
-                    </button>
-                    <span
-                      className={`rounded-full px-2 py-1 text-[10px] ${item.active ? "bg-emerald-100 text-emerald-800" : "bg-muted text-muted-foreground"}`}
-                    >
-                      {item.active ? "Visible" : "Hidden"}
-                    </span>
-                    <button
-                      aria-label={`Delete ${item.title}`}
-                      onClick={() => remove.mutate(item.id)}
-                      className="rounded p-1 text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </section>
+            <ContentSectionList
+              key={section}
+              section={section}
+              rows={rows}
+              onEdit={setEditing}
+              onDelete={(id) => remove.mutate(id)}
+            />
           );
         })}
       </div>

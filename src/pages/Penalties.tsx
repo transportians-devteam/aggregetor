@@ -3,12 +3,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CreditCard, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { ListPagination } from "@/components/ListPagination";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   appealEnforcement,
   listEnforcementCases,
   submitComplianceResponse,
+  submitRestorationReport,
 } from "@/services/enforcementService";
 import { payPenalty } from "@/services/walletService";
 import { getErrorMessage } from "@/services/api";
@@ -21,11 +24,13 @@ const money = (value = 0) =>
 export default function Penalties() {
   const client = useQueryClient();
   const [text, setText] = useState<Record<string, string>>({});
+  const [undertakings, setUndertakings] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const cases = useQuery({
     queryKey: ["enforcementCases"],
     queryFn: listEnforcementCases,
   });
+  const pages = useClientPagination(cases.data ?? []);
   const refresh = () => {
     client.invalidateQueries({ queryKey: ["enforcementCases"] });
     client.invalidateQueries({ queryKey: ["wallet"] });
@@ -51,6 +56,12 @@ export default function Penalties() {
     onSuccess: refresh,
     onError: (e) => setError(getErrorMessage(e)),
   });
+  const restore = useMutation({
+    mutationFn: ({ id, report, undertaking }: { id: string; report: string; undertaking: string }) =>
+      submitRestorationReport(id, report, undertaking),
+    onSuccess: refresh,
+    onError: (e) => setError(getErrorMessage(e)),
+  });
 
   return (
     <DashboardLayout>
@@ -64,7 +75,7 @@ export default function Penalties() {
       </div>
       {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
       <div className="space-y-4">
-        {cases.data?.map((item) => (
+        {pages.pageItems.map((item) => (
           <article key={item.id} className="glass border rounded-xl p-5">
             <div className="flex gap-3">
               <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
@@ -108,9 +119,11 @@ export default function Penalties() {
                       )}
                     {item.penalty.type === "NON_MONETARY" &&
                       item.penalty.status === "ISSUED" && (
-                        <div className="flex gap-2 mt-3">
+                        <div className="mt-3 space-y-2">
+                          <p className="text-sm font-medium">Show-cause hearing reply</p>
+                          <div className="flex gap-2">
                           <Input
-                            placeholder="Compliance response"
+                            placeholder="Explain the violation and corrective action taken"
                             value={text[item.id] ?? ""}
                             onChange={(e) =>
                               setText((current) => ({
@@ -130,8 +143,39 @@ export default function Penalties() {
                           >
                             <Send className="w-4 h-4" />
                           </Button>
+                          </div>
                         </div>
                       )}
+                  </div>
+                )}
+                {item.status === "SUSPENDED" && (
+                  <div className="mt-4 space-y-3 rounded-lg border p-4">
+                    <div>
+                      <strong>Request restoration of operations</strong>
+                      <p className="text-xs text-muted-foreground">
+                        Submit the compliance report and Form 4 undertaking for Authority review.
+                      </p>
+                    </div>
+                    <Input
+                      placeholder="Compliance report and corrective measures"
+                      value={text[item.id] ?? ""}
+                      onChange={(e) => setText((current) => ({ ...current, [item.id]: e.target.value }))}
+                    />
+                    <Input
+                      placeholder="Form 4 undertaking reference/details"
+                      value={undertakings[item.id] ?? ""}
+                      onChange={(e) => setUndertakings((current) => ({ ...current, [item.id]: e.target.value }))}
+                    />
+                    <Button
+                      onClick={() => restore.mutate({
+                        id: item.id,
+                        report: text[item.id],
+                        undertaking: undertakings[item.id],
+                      })}
+                      disabled={!text[item.id] || !undertakings[item.id] || restore.isPending}
+                    >
+                      Submit for restoration review
+                    </Button>
                   </div>
                 )}
                 {["SUSPENDED", "CANCELLED"].includes(item.status) &&
@@ -169,7 +213,7 @@ export default function Penalties() {
             </div>
           </article>
         ))}
-        {(pay.isPending || respond.isPending || appeal.isPending) && (
+        {(pay.isPending || respond.isPending || appeal.isPending || restore.isPending) && (
           <Loader2 className="animate-spin" />
         )}
         {!cases.isLoading && !cases.data?.length && (
@@ -178,6 +222,11 @@ export default function Penalties() {
           </div>
         )}
       </div>
+      {pages.totalItems > pages.pageSize && (
+        <div className="mt-4 overflow-hidden rounded-xl border">
+          <ListPagination page={pages.page} pageSize={pages.pageSize} totalItems={pages.totalItems} onPageChange={pages.setPage} />
+        </div>
+      )}
     </DashboardLayout>
   );
 }

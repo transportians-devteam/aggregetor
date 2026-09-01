@@ -32,6 +32,25 @@ export interface VehicleFundingQuote {
   vehicleId: string;
   securityDeposit: number;
   onboardingFee: number;
+  annualVehicleFee: number;
+  annualBaseFee: number;
+  discountedAnnualFee: number;
+  discountPercentage: number;
+  proratedMonths: number;
+  feeWaived: boolean;
+  registrationAgeVerified: boolean;
+  fuelType: string | null;
+  calculationRule: string;
+  totalRequired: number;
+  availableBalance: number;
+  shortfall: number;
+  sufficientBalance: boolean;
+}
+
+export interface VehicleBatchFundingQuote {
+  vehicles: VehicleFundingQuote[];
+  totalSecurityDeposit: number;
+  totalAnnualVehicleFee: number;
   totalRequired: number;
   availableBalance: number;
   shortfall: number;
@@ -46,6 +65,11 @@ export const getVehicleFundingQuote = async (
   vehicleId: string,
 ): Promise<VehicleFundingQuote> =>
   (await api.get(`/wallet/vehicles/${vehicleId}/funding-quote`)).data;
+
+export const getVehicleBatchFundingQuote = async (
+  vehicleIds: string[],
+): Promise<VehicleBatchFundingQuote> =>
+  (await api.post("/wallet/vehicles/funding-quote", { vehicleIds })).data;
 
 export const createTopUp = async (amount: number): Promise<PaymentIntent> =>
   (
@@ -66,6 +90,15 @@ export const fundVehicle = async (vehicleId: string): Promise<Wallet> =>
     await api.post(`/wallet/vehicles/${vehicleId}/fund`, undefined, {
       headers: { "Idempotency-Key": idempotencyKey(`vehicle-${vehicleId}`) },
     })
+  ).data;
+
+export const fundVehicles = async (vehicleIds: string[]): Promise<Wallet> =>
+  (
+    await api.post(
+      "/wallet/vehicles/fund-batch",
+      { vehicleIds },
+      { headers: { "Idempotency-Key": idempotencyKey("vehicle-batch") } },
+    )
   ).data;
 
 export const payPenalty = async (penaltyId: string): Promise<Wallet> =>

@@ -2,6 +2,7 @@ import api from "./api";
 
 export interface ComplianceFinding {
   id: string;
+  ownerUserId: number;
   subjectType: string;
   subjectId: string;
 	subjectLabel: string;

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { BarChart3, Loader2, Upload } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { ListPagination } from "@/components/ListPagination";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getErrorMessage } from "@/services/api";
@@ -15,6 +17,7 @@ import {
 } from "@/services/reportingService";
 
 function ResultTable({ rows }: { rows?: Utilization[] }) {
+  const pages = useClientPagination(rows ?? []);
   return (
     <div className="overflow-x-auto rounded-xl border bg-card">
       <table className="w-full min-w-[650px] text-left text-sm">
@@ -28,7 +31,7 @@ function ResultTable({ rows }: { rows?: Utilization[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows?.map((row) => (
+          {pages.pageItems.map((row) => (
             <tr key={row.subjectId} className="border-t">
               <td className="p-3 font-medium">{row.subjectLabel}</td>
               <td>{row.tripCount}</td>
@@ -46,6 +49,7 @@ function ResultTable({ rows }: { rows?: Utilization[] }) {
           )}
         </tbody>
       </table>
+      <ListPagination page={pages.page} pageSize={pages.pageSize} totalItems={pages.totalItems} onPageChange={pages.setPage} />
     </div>
   );
 }
@@ -174,7 +178,7 @@ export default function Reports() {
           Drivers
         </Button>
       </div>
-      <ResultTable rows={tab === "vehicles" ? vehicles.data : drivers.data} />
+      <ResultTable key={`${tab}-${from}-${to}`} rows={tab === "vehicles" ? vehicles.data : drivers.data} />
     </DashboardLayout>
   );
 }

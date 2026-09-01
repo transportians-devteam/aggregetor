@@ -58,6 +58,7 @@ export interface RegistrationApplication extends RegistrationApplicationRequest 
   appellateDecidedAt: string | null;
   licenseIssuedAt: string | null;
   createdAt: string;
+  updatedAt: string;
   submittedAt: string | null;
 }
 

@@ -11,6 +11,13 @@ export interface OperatorDashboard {
   criticalComplianceAlerts: number;
   openEnforcementCases: number;
   unreadNotifications: number;
+  declaredFleetSize: number;
+  fleetCapacityUsed: number;
+  paymentPendingVehicles: number;
+  paidAndOnboardedVehicles: number;
+  remainingFleetCapacity: number;
+  bankGuaranteeAmount: number;
+  bankGuaranteeValidUntil: string | null;
   walletAvailableBalance: number;
   walletHeldBalance: number;
 }

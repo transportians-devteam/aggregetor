@@ -37,6 +37,9 @@ const requiredDocuments: Array<{ type: DocumentType; label: string }> = [
   { type: "BANK_GUARANTEE", label: "Bank guarantee" },
 ];
 
+const requiredBankGuarantee = (fleetSize: number) =>
+  fleetSize < 1_000 ? 100_000 : fleetSize < 5_000 ? 250_000 : fleetSize <= 10_000 ? 500_000 : 1_000_000;
+
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { auth, acceptSession } = useAuth();
@@ -125,7 +128,7 @@ export default function RegisterPage() {
     if (
       !bankGuaranteeNumber ||
       !bankGuaranteeBank ||
-      bankGuaranteeAmount <= 0 ||
+      bankGuaranteeAmount < requiredBankGuarantee(declaredFleetSize) ||
       !bankGuaranteeValidUntil
     )
       return "Complete the bank guarantee security details.";
@@ -510,6 +513,9 @@ export default function RegisterPage() {
                 <p className="mb-3 text-xs text-muted-foreground">
                   Beneficiary: {bankGuaranteeBeneficiary}
                 </p>
+                <p className="mb-3 rounded-lg bg-primary/5 p-2 text-xs font-medium text-primary">
+                  Required for {declaredFleetSize.toLocaleString("en-IN")} vehicles: ₹{requiredBankGuarantee(declaredFleetSize).toLocaleString("en-IN")}
+                </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Input
                     value={bankGuaranteeNumber}
@@ -525,7 +531,7 @@ export default function RegisterPage() {
                   />
                   <Input
                     type="number"
-                    min="0.01"
+                    min={requiredBankGuarantee(declaredFleetSize)}
                     step="0.01"
                     value={bankGuaranteeAmount || ""}
                     onChange={(e) =>

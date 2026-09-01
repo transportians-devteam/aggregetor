@@ -48,10 +48,10 @@ export default function Dashboard() {
           }
         />
         <StatCard
-          label="Vehicles"
-          value={total(data?.vehicles).toString()}
+          label="Paid & onboarded fleet"
+          value={`${data?.paidAndOnboardedVehicles ?? 0} / ${data?.declaredFleetSize ?? 0}`}
           icon={<Car className="w-5 h-5" />}
-          trend={`${data?.electricVehicles ?? 0} electric`}
+          trend={`${data?.remainingFleetCapacity ?? 0} declaration slots remaining`}
         />
         <StatCard
           label="Drivers"
@@ -66,6 +66,47 @@ export default function Dashboard() {
           trend={`${money(data?.walletHeldBalance)} held`}
         />
       </div>
+      <section className="glass mb-5 rounded-xl border p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase text-muted-foreground">
+              Licensed fleet capacity
+            </p>
+            <p className="mt-1 text-2xl font-bold">
+              {data?.fleetCapacityUsed ?? 0} of {data?.declaredFleetSize ?? 0} reserved
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {data?.paidAndOnboardedVehicles ?? 0} paid and onboarded · {data?.paymentPendingVehicles ?? 0} awaiting payment · {data?.remainingFleetCapacity ?? 0} slots available
+            </p>
+          </div>
+          <div className="text-right text-sm">
+            <p className="font-semibold">Bank guarantee {money(data?.bankGuaranteeAmount)}</p>
+            <p className="text-muted-foreground">
+              {data?.bankGuaranteeValidUntil
+                ? `Valid until ${data.bankGuaranteeValidUntil}`
+                : "Guarantee details unavailable"}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-primary transition-all"
+            style={{
+              width: `${Math.min(
+                100,
+                data?.declaredFleetSize
+                  ? ((data.fleetCapacityUsed ?? 0) / data.declaredFleetSize) * 100
+                  : 0,
+              )}%`,
+            }}
+          />
+        </div>
+        {(data?.remainingFleetCapacity ?? 0) === 0 && (data?.declaredFleetSize ?? 0) > 0 && (
+          <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm font-medium text-amber-900">
+            Declared fleet-size limit reached. Additional vehicles cannot be added under this licence.
+          </p>
+        )}
+      </section>
       <div className="grid md:grid-cols-3 gap-4">
         <section className="glass rounded-xl border p-5">
           <p className="text-xs text-muted-foreground uppercase">

@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Car, ShieldAlert, Users } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { ListPagination } from "@/components/ListPagination";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { getMyVehicles } from "@/services/vehicleService";
 import { getMyDrivers } from "@/services/driverService";
 
@@ -15,6 +17,8 @@ export default function Offboarding() {
     drivers.data?.filter((item) =>
       ["REJECTED", "OFFBOARDED"].includes(item.status),
     ) ?? [];
+  const vehiclePages = useClientPagination(restrictedVehicles);
+  const driverPages = useClientPagination(restrictedDrivers);
   return (
     <DashboardLayout>
       <div className="mb-6">
@@ -36,7 +40,7 @@ export default function Offboarding() {
           <div className="p-4 border-b flex gap-2 font-semibold">
             <Car className="w-5 h-5" /> Restricted vehicles
           </div>
-          {restrictedVehicles.map((item) => (
+          {vehiclePages.pageItems.map((item) => (
             <div key={item.id} className="p-4 border-b last:border-0">
               <strong className="font-mono">{item.registrationNumber}</strong>
               <p className="text-sm">{item.status.replaceAll("_", " ")}</p>
@@ -46,12 +50,13 @@ export default function Offboarding() {
           {!restrictedVehicles.length && (
             <p className="p-8 text-center text-muted-foreground">None</p>
           )}
+          <ListPagination page={vehiclePages.page} pageSize={vehiclePages.pageSize} totalItems={vehiclePages.totalItems} onPageChange={vehiclePages.setPage} />
         </section>
         <section className="glass border rounded-xl">
           <div className="p-4 border-b flex gap-2 font-semibold">
             <Users className="w-5 h-5" /> Restricted drivers
           </div>
-          {restrictedDrivers.map((item) => (
+          {driverPages.pageItems.map((item) => (
             <div key={item.id} className="p-4 border-b last:border-0">
               <strong>{item.driverName ?? item.licenseNumber}</strong>
               <p className="text-sm font-mono">
@@ -63,6 +68,7 @@ export default function Offboarding() {
           {!restrictedDrivers.length && (
             <p className="p-8 text-center text-muted-foreground">None</p>
           )}
+          <ListPagination page={driverPages.page} pageSize={driverPages.pageSize} totalItems={driverPages.totalItems} onPageChange={driverPages.setPage} />
         </section>
       </div>
     </DashboardLayout>

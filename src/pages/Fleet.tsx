@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Car, Search, Zap } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { ListPagination } from "@/components/ListPagination";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { getMyVehicles } from "@/services/vehicleService";
 import { getErrorMessage } from "@/services/api";
 
@@ -18,6 +20,7 @@ export default function Fleet() {
       ),
     [category, query.data, search],
   );
+  const pages = useClientPagination(vehicles);
 
   return (
     <DashboardLayout>
@@ -63,7 +66,10 @@ export default function Fleet() {
         {(["ALL", "2W", "3W", "4W"] as const).map((value) => (
           <button
             key={value}
-            onClick={() => setCategory(value)}
+            onClick={() => {
+              setCategory(value);
+              pages.reset();
+            }}
             className={`px-4 py-2 rounded-lg border text-sm ${category === value ? "bg-primary text-primary-foreground" : "bg-card"}`}
           >
             {value}
@@ -75,7 +81,10 @@ export default function Fleet() {
             className="h-10 border rounded-lg pl-9 pr-3 bg-background"
             placeholder="Registration number"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              pages.reset();
+            }}
           />
         </div>
       </div>
@@ -101,7 +110,7 @@ export default function Fleet() {
             </tr>
           </thead>
           <tbody>
-            {vehicles.map((vehicle) => (
+            {pages.pageItems.map((vehicle) => (
               <tr key={vehicle.id} className="border-t">
                 <td className="p-3 font-mono font-semibold">
                   {vehicle.registrationNumber}
@@ -146,6 +155,12 @@ export default function Fleet() {
             )}
           </tbody>
         </table>
+        <ListPagination
+          page={pages.page}
+          pageSize={pages.pageSize}
+          totalItems={pages.totalItems}
+          onPageChange={pages.setPage}
+        />
       </div>
     </DashboardLayout>
   );

@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CreditCard, Loader2, Wallet as WalletIcon } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { ListPagination } from "@/components/ListPagination";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,6 +29,7 @@ export default function WalletPage() {
     queryKey: ["walletEntries"],
     queryFn: getWalletEntries,
   });
+  const entryPages = useClientPagination(entries.data ?? []);
   const topUp = useMutation({
     mutationFn: async () => {
       const intent = await createTopUp(amount);
@@ -65,7 +68,7 @@ export default function WalletPage() {
             {money(wallet.data?.heldBalance)}
           </p>
           <p className="text-sm text-muted-foreground">
-            Held security deposits
+            Held balance
           </p>
         </div>
       </div>
@@ -111,7 +114,7 @@ export default function WalletPage() {
             </tr>
           </thead>
           <tbody>
-            {entries.data?.map((entry) => (
+            {entryPages.pageItems.map((entry) => (
               <tr key={entry.id} className="border-t">
                 <td className="p-3">
                   {new Date(entry.createdAt).toLocaleString()}
@@ -146,6 +149,12 @@ export default function WalletPage() {
             )}
           </tbody>
         </table>
+        <ListPagination
+          page={entryPages.page}
+          pageSize={entryPages.pageSize}
+          totalItems={entryPages.totalItems}
+          onPageChange={entryPages.setPage}
+        />
       </section>
     </DashboardLayout>
   );

@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Bell, CreditCard } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { ListPagination } from "@/components/ListPagination";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { getWalletEntries } from "@/services/walletService";
 import { listNotifications } from "@/services/notificationService";
 import { getErrorMessage } from "@/services/api";
@@ -30,6 +32,7 @@ export default function History() {
       icon: Bell,
     })),
   ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  const pages = useClientPagination(activity);
   return (
     <DashboardLayout>
       <h1 className="font-heading text-2xl font-bold">Activity</h1>
@@ -42,7 +45,7 @@ export default function History() {
         </p>
       )}
       <div className="divide-y rounded-xl border bg-card">
-        {activity.map((item) => (
+        {pages.pageItems.map((item) => (
           <div key={item.id} className="flex items-start gap-3 p-4">
             <span className="shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
               <item.icon className="h-4 w-4" />
@@ -68,6 +71,7 @@ export default function History() {
             No activity yet.
           </p>
         )}
+        <ListPagination page={pages.page} pageSize={pages.pageSize} totalItems={pages.totalItems} onPageChange={pages.setPage} />
       </div>
     </DashboardLayout>
   );

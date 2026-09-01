@@ -8,6 +8,7 @@ export interface FleetVehicle {
   category: VehicleCategory;
   status: string;
   registrationValidUntil: string | null;
+  vahanRegistrationDate: string | null;
   pucValidUntil: string | null;
   insuranceValidUntil: string | null;
 	fitnessValidUntil: string | null;
@@ -36,7 +37,12 @@ export interface FleetDeclarationWindow {
   totalVehicles: number;
   activeVehicles: number;
   awaitingFunding: number;
-  rejectedVehicles: number;
+  offboardedVehicles: number;
+  declaredFleetSize: number;
+  onboardedAgainstDeclaration: number;
+  paidAndOnboardedVehicles: number;
+  awaitingPaymentAgainstDeclaration: number;
+  remainingDeclarationCapacity: number;
   evPercentage: number;
   requiredEvPercentage: number;
   evTargetMet: boolean;
@@ -51,16 +57,21 @@ export interface VahanIntegrationStatus {
 
 export interface VehicleImportJob {
   id: string;
-  fileName: string;
+  sourceFilename: string;
   status: string;
   totalRows: number;
   acceptedRows: number;
   rejectedRows: number;
+  processedRows: number;
+  rowsPerSecond: number;
+  estimatedSecondsRemaining: number | null;
   rows?: Array<{
     rowNumber: number;
     registrationNumber: string;
+    category: string;
     status: string;
-    reason?: string;
+    vehicleId: string | null;
+    message: string;
   }>;
 }
 

@@ -76,9 +76,17 @@ export function getErrorMessage(
 ): string {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as
-      | { detail?: string; message?: string }
+      | { detail?: string; message?: string; error?: string; title?: string }
       | undefined;
-    return data?.detail ?? data?.message ?? fallback;
+    const serverMessage = data?.detail ?? data?.message ?? data?.error ?? data?.title;
+    if (serverMessage) return serverMessage;
+    if (error.response?.status) {
+      return `${fallback} (HTTP ${error.response.status})`;
+    }
+    if (error.code === "ERR_NETWORK") {
+      return "The backend could not be reached. Confirm that it is running and try again.";
+    }
+    return fallback;
   }
   return error instanceof Error ? error.message : fallback;
 }

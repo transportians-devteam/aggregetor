@@ -10,6 +10,9 @@ export interface EnforcementCase {
   description: string;
   status: string;
   createdAt: string;
+  restorationReport: string | null;
+  form4Undertaking: string | null;
+  restorationSubmittedAt: string | null;
   penalty: null | {
     id: string;
     type: "MONETARY" | "NON_MONETARY";
@@ -58,6 +61,15 @@ export const issuePenalty = async (
   },
 ): Promise<EnforcementCase> =>
   (await api.post(`/admin/enforcement/cases/${caseId}/penalty`, request)).data;
+export const issueShowCause = async (
+  caseId: string,
+  instruction: string,
+): Promise<EnforcementCase> =>
+  (
+    await api.post(`/admin/enforcement/cases/${caseId}/show-cause`, {
+      instruction,
+    })
+  ).data;
 export const submitComplianceResponse = async (
   caseId: string,
   reason: string,
@@ -71,11 +83,37 @@ export const reviewComplianceResponse = async (
   caseId: string,
   satisfactory: boolean,
   reason: string,
+  suspensionDays = 10,
 ): Promise<EnforcementCase> =>
   (
     await api.post(`/admin/enforcement/cases/${caseId}/compliance-review`, {
       satisfactory,
       reason,
+      suspensionDays,
+    })
+  ).data;
+export const submitRestorationReport = async (
+  caseId: string,
+  report: string,
+  form4Undertaking: string,
+): Promise<EnforcementCase> =>
+  (
+    await api.post(`/enforcement/cases/${caseId}/restoration-report`, {
+      report,
+      form4Undertaking,
+    })
+  ).data;
+export const reviewRestorationReport = async (
+  caseId: string,
+  satisfactory: boolean,
+  reason: string,
+  extensionDays = 10,
+): Promise<EnforcementCase> =>
+  (
+    await api.post(`/admin/enforcement/cases/${caseId}/restoration-review`, {
+      satisfactory,
+      reason,
+      extensionDays,
     })
   ).data;
 export const suspendLicense = async (

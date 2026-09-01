@@ -465,7 +465,7 @@ export default function Landing() {
                 [
                   "Step 2",
                   "Onboard your fleet",
-                  "Validate vehicles and drivers, then fund security deposits.",
+                  "Validate vehicles and drivers, then pay applicable vehicle fees.",
                   Car,
                 ],
                 [

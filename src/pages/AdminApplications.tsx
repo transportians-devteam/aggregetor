@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { ListPagination } from "@/components/ListPagination";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   authorityApplicationMessage,
@@ -160,6 +162,7 @@ function ApplicationCard({
     queryKey: ["application-documents", application.id],
     queryFn: () => listDocuments(application.id),
   });
+  const documentPages = useClientPagination(docs.data ?? []);
   const refresh = () => {
     setReason("");
     void client.invalidateQueries({ queryKey: ["authority-applications"] });
@@ -259,7 +262,7 @@ function ApplicationCard({
       )}
 
       <div className="mt-4 grid gap-2 md:grid-cols-2">
-        {docs.data?.map((doc) => {
+        {documentPages.pageItems.map((doc) => {
           const canReviewDocument =
             permissions.reviewDocuments &&
             doc.currentVersion &&
@@ -361,6 +364,7 @@ function ApplicationCard({
           );
         })}
       </div>
+      <ListPagination page={documentPages.page} pageSize={documentPages.pageSize} totalItems={documentPages.totalItems} onPageChange={documentPages.setPage} />
 
       {showReason && (
         <textarea
@@ -498,6 +502,7 @@ export default function AdminApplications() {
       ? listAppellateApplications
       : () => listApplicationsForReview(),
   });
+  const pages = useClientPagination(query.data ?? []);
   return (
     <DashboardLayout>
       <h1 className="font-heading text-2xl font-bold">
@@ -512,7 +517,7 @@ export default function AdminApplications() {
         <p className="mb-4 text-destructive">{getErrorMessage(query.error)}</p>
       )}
       <div className="space-y-4">
-        {query.data?.map((application) => (
+        {pages.pageItems.map((application) => (
           <ApplicationCard key={application.id} application={application} />
         ))}
         {query.data?.length === 0 && (
@@ -521,6 +526,7 @@ export default function AdminApplications() {
           </p>
         )}
       </div>
+      <ListPagination page={pages.page} pageSize={pages.pageSize} totalItems={pages.totalItems} onPageChange={pages.setPage} />
     </DashboardLayout>
   );
 }

@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { AlertTriangle, BarChart3, Bell, Car, ChevronLeft, ChevronRight, CircleHelp, Clock, FileCheck, FileText, Gauge, Leaf, LogOut, Settings2, ShieldCheck, User, UserMinus, UserPlus, Wallet, Zap } from 'lucide-react';
+import { AlertTriangle, BarChart3, Bell, Car, ChevronLeft, ChevronRight, CircleHelp, Clock, FileCheck, FileText, Gauge, GitBranch, Leaf, LogOut, Radio, Settings2, ShieldCheck, User, UserMinus, UserPlus, Wallet, Zap } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -8,14 +8,18 @@ const operatorNav = [
   ['Dashboard', Gauge, '/dashboard'], ['My Fleet', Car, '/fleet'], ['Onboarding', UserPlus, '/onboarding'],
   ['Applications', FileText, '/applications'], ['Reports', BarChart3, '/reports'],
   ['System Offboarding', UserMinus, '/offboarding'], ['Compliance', Leaf, '/ev-compliance'],
+  ['Safety & CCC', Radio, '/safety'],
   ['Penalties', AlertTriangle, '/penalties'], ['Activity', Clock, '/history'], ['Wallet', Wallet, '/wallet'],
   ['Notifications', Bell, '/notifications'], ['My Profile', User, '/profile'], ['Help', CircleHelp, '/help'],
+  ['Process Flow', GitBranch, '/process-flow'],
 ] as const;
 const authorityNav = [
   ['Authority Dashboard', Gauge, '/admin'], ['Applications', FileCheck, '/admin/applications'],
   ['Compliance', ShieldCheck, '/admin/compliance'], ['Enforcement', AlertTriangle, '/admin/enforcement'],
+  ['Safety & CCC', Radio, '/safety'],
   ['Government MIS', Car, '/admin/mis'], ['Notifications', Bell, '/notifications'], ['My Profile', User, '/profile'],
   ['Portal Content', Settings2, '/admin/content'],
+  ['Process Flow', GitBranch, '/process-flow'],
 ] as const;
 
 export function AppSidebar({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate?: () => void }) {

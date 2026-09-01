@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileText, Loader2, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { ListPagination } from "@/components/ListPagination";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getErrorMessage } from "@/services/api";
@@ -404,7 +406,11 @@ function ApplicationCard({
         </div>
       )}
       {application.status === "DC_REJECTED" && (
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <div className="mt-4 space-y-2">
+          <p className="text-xs font-medium text-amber-700">
+            Appeal must be filed by {new Date(new Date(application.updatedAt).getTime() + 30 * 86400000).toLocaleDateString()}.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
           <Input
             value={appealReason}
             onChange={(event) => setAppealReason(event.target.value)}
@@ -417,6 +423,7 @@ function ApplicationCard({
             <Send className="mr-2 h-4 w-4" />
             Appeal
           </Button>
+          </div>
         </div>
       )}
     </article>
@@ -436,6 +443,8 @@ export default function Applications() {
     queryKey: ["my-licenses"],
     queryFn: listLicenses,
   });
+  const applicationPages = useClientPagination(applications.data ?? []);
+  const licensePages = useClientPagination(licenses.data ?? []);
   return (
     <DashboardLayout>
       <div className="mb-6">
@@ -453,7 +462,7 @@ export default function Applications() {
         </p>
       )}
       <div className="space-y-4">
-        {applications.data?.map((application) => (
+        {applicationPages.pageItems.map((application) => (
           <ApplicationCard key={application.id} application={application} />
         ))}
         {applications.data?.length === 0 && (
@@ -463,13 +472,14 @@ export default function Applications() {
           </div>
         )}
       </div>
+      <ListPagination page={applicationPages.page} pageSize={applicationPages.pageSize} totalItems={applicationPages.totalItems} onPageChange={applicationPages.setPage} />
       {licenses.data && licenses.data.length > 0 && (
         <section className="mt-8">
           <h2 className="mb-3 font-heading text-lg font-bold">
             Issued licences
           </h2>
           <div className="grid gap-3 md:grid-cols-2">
-            {licenses.data.map((license) => (
+            {licensePages.pageItems.map((license) => (
               <div key={license.id} className="rounded-xl border bg-card p-4">
                 <b>{license.licenseNumber}</b>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -481,6 +491,7 @@ export default function Applications() {
               </div>
             ))}
           </div>
+          <ListPagination page={licensePages.page} pageSize={licensePages.pageSize} totalItems={licensePages.totalItems} onPageChange={licensePages.setPage} />
         </section>
       )}
     </DashboardLayout>

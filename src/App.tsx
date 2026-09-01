@@ -31,6 +31,8 @@ import NotFound from "./pages/NotFound";
 import Applications from "./pages/Applications";
 import Reports from "./pages/Reports";
 import AdminContent from "./pages/AdminContent";
+import SafetyMonitoring from "./pages/SafetyMonitoring";
+import ProcessFlow from "./pages/ProcessFlow";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000 } },
@@ -128,6 +130,18 @@ const App = () => (
                   <Reports />
                 </RoleProtectedRoute>
               }
+            />
+            <Route
+              path="/safety"
+              element={
+                <RoleProtectedRoute allowedRoles={[...operatorRoles, "officer", "enforcement", "admin"]}>
+                  <SafetyMonitoring />
+                </RoleProtectedRoute>
+              }
+            />
+            <Route
+              path="/process-flow"
+              element={<ProtectedRoute><ProcessFlow /></ProtectedRoute>}
             />
             <Route
               path="/profile"
