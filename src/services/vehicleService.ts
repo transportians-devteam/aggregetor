@@ -65,6 +65,8 @@ export interface VehicleImportJob {
   processedRows: number;
   rowsPerSecond: number;
   estimatedSecondsRemaining: number | null;
+  elapsedSeconds?: number;
+  duration?: string;
   rows?: Array<{
     rowNumber: number;
     registrationNumber: string;

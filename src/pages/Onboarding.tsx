@@ -516,6 +516,7 @@ export default function Onboarding() {
                   {vehicleImportResult.status !== "COMPLETED" && vehicleImportResult.processedRows > 0 && (
                     <span className="ml-1 text-muted-foreground">
                       {vehicleImportResult.rowsPerSecond} vehicles/s
+                      {vehicleImportResult.duration && `  ${vehicleImportResult.duration} elapsed`}
                       {vehicleImportResult.estimatedSecondsRemaining != null &&
                         ` · approximately ${formatDuration(vehicleImportResult.estimatedSecondsRemaining)} remaining`}
                     </span>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, Smartphone, Zap } from "lucide-react";
+import { ArrowLeft, Loader2, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
@@ -8,13 +8,13 @@ import { requestLoginOtp } from "@/services/authService";
 import { getErrorMessage } from "@/services/api";
 import { cn } from "@/lib/utils";
 
-const roles: Array<{ label: string; role: UserRole; phone?: string }> = [
-  { label: "Aggregator", role: "aggregator" },
-  { label: "DSP", role: "dsp" },
-  { label: "Officer", role: "officer", phone: "9000000001" },
-  { label: "Appellate", role: "appellate_officer", phone: "9000000002" },
-  { label: "Enforcement", role: "enforcement", phone: "9000000003" },
-  { label: "Administrator", role: "admin", phone: "9000000004" },
+const roles: Array<{ label: string; role: UserRole; phone?: string; hint?: string }> = [
+  { label: "Aggregator", role: "aggregator", hint: "Operator" },
+  { label: "DSP", role: "dsp", hint: "Delivery Service" },
+  { label: "DC Level Officer", role: "officer", phone: "9000000001", hint: "1. Scrutiny" },
+  { label: "SCoT (EV) / Admin", role: "admin", phone: "9000000004", hint: "2. Licence Sign-off" },
+  { label: "Appellate Authority", role: "appellate_officer", phone: "9000000002", hint: "Appeals" },
+  { label: "Enforcement Officer", role: "enforcement", phone: "9000000003", hint: "Field Team" },
 ];
 
 export default function Login() {
@@ -34,7 +34,7 @@ export default function Login() {
     "admin",
   ].includes(role)
     ? "/admin"
-    : "/dashboard";
+    : "/applications";
 
   const selectRole = (next: (typeof roles)[number]) => {
     setRole(next.role);
@@ -80,10 +80,17 @@ export default function Login() {
             <ArrowLeft className="w-4 h-4" /> Back to portal
           </Link>
           <div className="flex items-center gap-3 mb-8">
-            <span className="w-10 h-10 rounded-lg bg-accent grid place-items-center">
-              <Zap className="w-6 h-6" />
-            </span>
-            <strong className="text-xl">GACP</strong>
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10 p-2 backdrop-blur-sm border border-white/10">
+              <img
+                src="/delhi-sarkar.png"
+                alt="Delhi Sarkar"
+                className="h-8 w-auto object-contain brightness-0 invert"
+              />
+            </div>
+            <div>
+              <strong className="block text-xl leading-none">GACP</strong>
+              <span className="text-[10px] opacity-70">Government of NCT of Delhi</span>
+            </div>
           </div>
           <h1 className="font-heading text-4xl font-bold leading-tight">
             Secure access to Delhi's aggregator compliance portal.
@@ -118,13 +125,25 @@ export default function Login() {
                 key={item.role}
                 onClick={() => selectRole(item)}
                 className={cn(
-                  "px-3 py-2 rounded-lg border text-xs font-semibold",
+                  "p-2.5 rounded-lg border text-xs font-semibold text-center transition-colors flex flex-col justify-center items-center min-h-[54px]",
                   role === item.role
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-card border-border",
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-card border-border hover:bg-muted/50",
                 )}
               >
-                {item.label}
+                <span className="leading-tight">{item.label}</span>
+                {item.hint && (
+                  <span
+                    className={cn(
+                      "text-[10px] mt-0.5 font-normal",
+                      role === item.role
+                        ? "text-primary-foreground/80"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {item.hint}
+                  </span>
+                )}
               </button>
             ))}
           </div>

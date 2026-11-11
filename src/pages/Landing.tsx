@@ -1,4 +1,6 @@
 ﻿import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
+import { GovTopBar } from "@/components/GovTopBar";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -201,18 +203,33 @@ export default function Landing() {
   const contacts = section(content, "CONTACT");
   const contact = (label: string) =>
     contacts.find((item) => item.label === label)?.value ?? "—";
+
+  const [isScrolled, setIsScrolled] = useState(false);
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
   return (
-    <div className="landing-page min-h-screen overflow-x-hidden bg-[#f7f9f8] text-slate-800">
-      <header className="sticky top-0 z-50 border-b border-emerald-950/5 bg-white/95 backdrop-blur-xl">
+    <div className="landing-page min-h-screen overflow-x-clip bg-[#f7f9f8] text-slate-800">
+      <GovTopBar />
+      <header
+        className={cn(
+          "sticky top-0 z-50 transition-all duration-200 border-b",
+          isScrolled
+            ? "bg-white/80 backdrop-blur-md shadow-sm border-slate-200/80"
+            : "bg-white/95 backdrop-blur-xl border-emerald-950/5"
+        )}
+      >
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
-          <Link to="/" className="flex min-w-0 items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#eaf7ee]">
-              <img
-                src="/logo-removebg-preview.png"
-                alt="GACP"
-                className="h-7 w-7 object-contain"
-              />
-            </span>
+          <Link to="/" className="flex min-w-0 items-center gap-3">
+            <img
+              src="/delhi-sarkar.png"
+              alt="Delhi Sarkar"
+              className="h-9 w-auto shrink-0 object-contain"
+            />
             <span className="min-w-0">
               <b className="block font-heading text-sm leading-none text-[#105d34]">
                 GACP
@@ -254,7 +271,7 @@ export default function Landing() {
         </div>
       </header>
 
-      <main>
+      <main id="main-content">
         <section className="relative isolate min-h-[600px] overflow-hidden bg-[#8ed7f7] sm:min-h-[620px] md:min-h-[640px]">
           <img
             src={heroIllustration}
@@ -264,11 +281,11 @@ export default function Landing() {
           />
           <div className="absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-[#8ed7f7]/80 via-[#8ed7f7]/35 to-transparent" />
           <div className="relative mx-auto flex max-w-5xl flex-col items-center px-4 pt-10 text-center sm:px-6 md:pt-12">
-            <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-800/10 bg-white/85 px-3 py-1 text-[9px] font-bold uppercase tracking-[.12em] text-[#19733c] shadow-sm">
+            <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-800/10 bg-white/85 px-3 py-1 text-[9px] font-semibold  trackin2-[.18em] text-[#19733c] shadow-sm">
               <Leaf className="h-3 w-3" />
-              Transport Department · Government of NCT of Delhi
+              Transport Department · GNCTD
             </span>
-            <h1 className="max-w-6xl font-body text-[46px] font-bold leading-[1.06] tracking-[-.03em] text-[#146a38] drop-shadow-sm sm:text-[60px] md:text-[67px] lg:text-[72px]">
+            <h1 className="max-w-6xl font-body text-[40px] font-bold leading-[1.06] tracking-[-.03em] text-[#146a38] drop-shadow-sm sm:text-[50px] md:text-[60px] lg:text-[65px]">
               Welcome to Delhi Aggregator Portal
             </h1>
 			<p className="mt-3 max-w-2xl px-3 text-base font-semibold leading-relaxed text-slate-800 [text-shadow:0_1px_0_rgba(255,255,255,1),0_2px_8px_rgba(255,255,255,.9)] sm:text-[17px] md:text-lg">
@@ -278,7 +295,7 @@ export default function Landing() {
           <div className="mt-5 flex flex-wrap justify-center gap-3 sm:gap-16 md:gap-28">
               <Link
                 to="/register"
-                className="inline-flex items-center gap-2 rounded-lg bg-[#19733c] px-5 py-3 text-xs font-bold text-white shadow-lg shadow-emerald-900/20 transition hover:-translate-y-0.5 hover:bg-[#105d34]"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#085c34] px-5 py-3 text-xs font-bold text-white shadow-lg shadow-emerald-900/20 transition hover:-translate-y-0.5 hover:bg-[#105d34]"
               >
                 Apply for licence <ArrowRight className="h-3.5 w-3.5" />
               </Link>
@@ -424,14 +441,14 @@ export default function Landing() {
               </p>
               <div className="relative mt-3 grid gap-3 sm:grid-cols-2">
                 {[
-                  ["Apply for licence", FileText, "/register"],
-                  ["Sign in to portal", ShieldCheck, "/login"],
-                  ["Review EV targets", Target, "#targets"],
-                  ["Read Aggregator Policy", CircleHelp, aggregatorPolicy],
-                ].map(([label, Icon, path]) => (
+                  { label: "Apply for licence", icon: FileText, path: "/register" },
+                  { label: "Sign in to portal", icon: ShieldCheck, path: "/login" },
+                  { label: "Review EV targets", icon: Target, path: "#targets" },
+                  { label: "Read Aggregator Policy", icon: CircleHelp, path: aggregatorPolicy },
+                ].map(({ label, icon: Icon, path }) => (
                   <Link
-                    key={String(label)}
-                    to={String(path)}
+                    key={label}
+                    to={path}
                     reloadDocument={path === aggregatorPolicy}
                     target={path === aggregatorPolicy ? "_blank" : undefined}
                     rel={path === aggregatorPolicy ? "noreferrer" : undefined}
@@ -456,27 +473,27 @@ export default function Landing() {
             <div className="relative mt-12 grid gap-10 md:grid-cols-3">
               <div className="absolute left-[16%] right-[16%] top-8 hidden border-t border-dashed border-emerald-600/25 md:block" />
               {[
-                [
-                  "Step 1",
-                  "Apply for licence",
-                  "Create the organisation application and upload documents.",
-                  Upload,
-                ],
-                [
-                  "Step 2",
-                  "Onboard your fleet",
-                  "Validate vehicles and drivers, then pay applicable vehicle fees.",
-                  Car,
-                ],
-                [
-                  "Step 3",
-                  "Track compliance",
-                  "Respond to findings, payments and regulatory actions.",
-                  Gauge,
-                ],
-              ].map(([step, title, text, Icon]) => (
+                {
+                  step: "Step 1",
+                  title: "Apply for licence",
+                  text: "Create the organisation application and upload documents.",
+                  icon: Upload,
+                },
+                {
+                  step: "Step 2",
+                  title: "Onboard your fleet",
+                  text: "Validate vehicles and drivers, then pay applicable vehicle fees.",
+                  icon: Car,
+                },
+                {
+                  step: "Step 3",
+                  title: "Track compliance",
+                  text: "Respond to findings, payments and regulatory actions.",
+                  icon: Gauge,
+                },
+              ].map(({ step, title, text, icon: Icon }) => (
                 <article
-                  key={String(step)}
+                  key={step}
                   className="relative flex flex-col items-center text-center"
                 >
                   <span className="z-10 flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-[#edf8f0] text-[#238249] shadow-lg">
@@ -611,14 +628,12 @@ export default function Landing() {
       <footer className="bg-[#073727] text-white/65">
         <div className="mx-auto grid w-full max-w-7xl gap-9 px-4 py-12 sm:px-6 lg:px-8 md:grid-cols-[1.4fr_1fr_1fr_1.15fr]">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-400/15">
-                <img
-                  src="/logo-removebg-preview.png"
-                  alt=""
-                  className="h-7 w-7"
-                />
-              </span>
+            <div className="flex items-center gap-3">
+              <img
+                src="/delhi-sarkar.png"
+                alt="Delhi Sarkar"
+                className="h-9 w-auto shrink-0 object-contain brightness-0 invert"
+              />
               <span>
                 <b className="block text-xs text-white">
                   Delhi Aggregator Portal

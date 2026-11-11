@@ -166,6 +166,11 @@ export const listApplicationsForReview = async (
       params: status ? { status } : undefined,
     })
   ).data;
+export const getAdminApplication = async (
+  id: string,
+): Promise<RegistrationApplication> =>
+  (await api.get(`/admin/registration-applications/${id}`)).data;
+
 export const startReview = async (
   id: string,
 ): Promise<RegistrationApplication> =>
