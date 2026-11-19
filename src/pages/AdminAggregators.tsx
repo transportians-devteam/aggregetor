@@ -1,16 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   CalendarDays,
   Car,
   ChevronLeft,
   ChevronRight,
+  Download,
   IdCard,
   Route,
+  Search,
   Users,
+  X,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { StatCard } from "@/components/StatCard";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   getGovernmentMis,
   getGovernmentMisDrivers,
@@ -31,60 +44,73 @@ const date = (value: string | null) =>
   value ? new Date(`${value}T00:00:00`).toLocaleDateString() : "—";
 const status = (value: string) => value.replaceAll("_", " ");
 
-function EmptyRow({ columns }: { columns: number }) {
+function EmptyRow({
+  columns,
+  message,
+}: {
+  columns: number;
+  message?: string;
+}) {
   return (
-    <tr>
-      <td
+    <TableRow>
+      <TableCell
         colSpan={columns}
-        className="p-10 text-center text-sm text-muted-foreground"
+        className="h-32 text-center text-sm text-muted-foreground"
       >
-        No records found in the selected date range.
-      </td>
-    </tr>
+        {message ?? "No records found in the selected date range."}
+      </TableCell>
+    </TableRow>
   );
 }
-function VehiclesTable({ rows }: { rows: MisVehicle[] }) {
+
+function VehiclesTable({
+  rows,
+  isFiltered,
+}: {
+  rows: MisVehicle[];
+  isFiltered?: boolean;
+}) {
   return (
-    <table className="w-full min-w-[1050px] text-left text-sm">
-      <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
-        <tr>
-          <th className="p-3">Operator</th>
-          <th>Registration</th>
-		  <th>State</th>
-          <th>Category</th>
-          <th>EV</th>
-          <th>Status</th>
-          <th>Registration</th>
-          <th>PUCC</th>
-          <th>Insurance</th>
-		  <th>Fitness</th>
-		  <th>Tax</th>
-		  <th>Permit</th>
-          <th>Challan</th>
-          <th>Last activity</th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table className="min-w-[1050px]">
+      <TableHeader>
+        <TableRow>
+          <TableHead>Operator</TableHead>
+          <TableHead>Registration</TableHead>
+          <TableHead>State</TableHead>
+          <TableHead>Category</TableHead>
+          <TableHead>EV</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Registration valid</TableHead>
+          <TableHead>PUCC valid</TableHead>
+          <TableHead>Insurance valid</TableHead>
+          <TableHead>Fitness valid</TableHead>
+          <TableHead>Tax valid</TableHead>
+          <TableHead>Permit valid</TableHead>
+          <TableHead>Challan</TableHead>
+          <TableHead>Last activity</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {rows.map((row) => (
-          <tr key={row.id} className="border-t">
-            <td className="p-3">
+          <TableRow key={row.id}>
+            <TableCell>
               <b>{row.operatorName}</b>
               <small className="block text-muted-foreground">
                 User #{row.ownerUserId}
               </small>
-            </td>
-            <td className="font-medium">{row.registrationNumber}</td>
-			<td>{row.stateCode ?? "—"}</td>
-            <td>{row.category}</td>
-            <td>
+            </TableCell>
+            <TableCell className="font-mono text-xs font-semibold">{row.registrationNumber}</TableCell>
+            <TableCell>{row.stateCode ?? "—"}</TableCell>
+            <TableCell>{row.category}</TableCell>
+            <TableCell>
               {row.electric === null
                 ? "Unknown"
                 : row.electric
-                  ? "Electric"
+                  ? <span className="font-medium text-emerald-600 dark:text-emerald-400">Electric</span>
                   : "Non-EV"}
-            </td>
-            <td>
-              <span className="rounded-full bg-muted px-2 py-1 text-xs">
+            </TableCell>
+            <TableCell>
+              <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
                 {status(row.status)}
               </span>
               {row.rejectionReason && (
@@ -92,59 +118,75 @@ function VehiclesTable({ rows }: { rows: MisVehicle[] }) {
                   {row.rejectionReason}
                 </small>
               )}
-            </td>
-            <td>{date(row.registrationValidUntil)}</td>
-            <td>{date(row.pucValidUntil)}</td>
-            <td>{date(row.insuranceValidUntil)}</td>
-			<td>{date(row.fitnessValidUntil)}</td>
-			<td>{date(row.taxValidUntil)}</td>
-			<td>{date(row.permitValidUntil)}</td>
-            <td>
+            </TableCell>
+            <TableCell>{date(row.registrationValidUntil)}</TableCell>
+            <TableCell>{date(row.pucValidUntil)}</TableCell>
+            <TableCell>{date(row.insuranceValidUntil)}</TableCell>
+            <TableCell>{date(row.fitnessValidUntil)}</TableCell>
+            <TableCell>{date(row.taxValidUntil)}</TableCell>
+            <TableCell>{date(row.permitValidUntil)}</TableCell>
+            <TableCell>
               {row.challanClear === null
-				? "Not verified"
+                ? <span className="text-muted-foreground">Not verified</span>
                 : row.challanClear
-                  ? "Clear"
-				  : "Outstanding"}
-            </td>
-            <td>{dateTime(row.updatedAt)}</td>
-          </tr>
+                  ? <span className="text-emerald-600 dark:text-emerald-400 font-medium">Clear</span>
+                  : <span className="text-amber-600 dark:text-amber-400 font-medium">Outstanding</span>}
+            </TableCell>
+            <TableCell className="text-xs text-muted-foreground">{dateTime(row.updatedAt)}</TableCell>
+          </TableRow>
         ))}
-		{rows.length === 0 && <EmptyRow columns={14} />}
-      </tbody>
-    </table>
+        {rows.length === 0 && (
+          <EmptyRow
+            columns={14}
+            message={
+              isFiltered
+                ? "No vehicles match your active search or filters."
+                : "No records found in the selected date range."
+            }
+          />
+        )}
+      </TableBody>
+    </Table>
   );
 }
-function DriversTable({ rows }: { rows: MisDriver[] }) {
+
+function DriversTable({
+  rows,
+  isFiltered,
+}: {
+  rows: MisDriver[];
+  isFiltered?: boolean;
+}) {
   return (
-    <table className="w-full min-w-[900px] text-left text-sm">
-      <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
-        <tr>
-          <th className="p-3">Operator</th>
-          <th>Driver</th>
-          <th>Licence</th>
-          <th>Licence valid</th>
-          <th>PSV badge</th>
-          <th>PSV valid</th>
-          <th>Status</th>
-          <th>Last activity</th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table className="min-w-[900px]">
+      <TableHeader>
+        <TableRow>
+          <TableHead>Operator</TableHead>
+          <TableHead>Driver</TableHead>
+          <TableHead>Licence</TableHead>
+          <TableHead>Licence valid</TableHead>
+          <TableHead>PSV badge</TableHead>
+          <TableHead>PSV valid</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Last activity</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {rows.map((row) => (
-          <tr key={row.id} className="border-t">
-            <td className="p-3">
+          <TableRow key={row.id}>
+            <TableCell>
               <b>{row.operatorName}</b>
               <small className="block text-muted-foreground">
                 User #{row.ownerUserId}
               </small>
-            </td>
-            <td>{row.driverName ?? "—"}</td>
-            <td className="font-medium">{row.licenseNumber}</td>
-            <td>{date(row.licenseValidUntil)}</td>
-            <td>{row.psvBadgeNumber ?? "—"}</td>
-            <td>{date(row.psvBadgeValidUntil)}</td>
-            <td>
-              <span className="rounded-full bg-muted px-2 py-1 text-xs">
+            </TableCell>
+            <TableCell className="font-medium">{row.driverName ?? "—"}</TableCell>
+            <TableCell className="font-mono text-xs font-semibold">{row.licenseNumber}</TableCell>
+            <TableCell>{date(row.licenseValidUntil)}</TableCell>
+            <TableCell className="font-mono text-xs">{row.psvBadgeNumber ?? "—"}</TableCell>
+            <TableCell>{date(row.psvBadgeValidUntil)}</TableCell>
+            <TableCell>
+              <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
                 {status(row.status)}
               </span>
               {row.rejectionReason && (
@@ -152,135 +194,194 @@ function DriversTable({ rows }: { rows: MisDriver[] }) {
                   {row.rejectionReason}
                 </small>
               )}
-            </td>
-            <td>{dateTime(row.updatedAt)}</td>
-          </tr>
+            </TableCell>
+            <TableCell className="text-xs text-muted-foreground">{dateTime(row.updatedAt)}</TableCell>
+          </TableRow>
         ))}
-        {rows.length === 0 && <EmptyRow columns={8} />}
-      </tbody>
-    </table>
+        {rows.length === 0 && (
+          <EmptyRow
+            columns={8}
+            message={
+              isFiltered
+                ? "No drivers match your active search or filters."
+                : "No records found in the selected date range."
+            }
+          />
+        )}
+      </TableBody>
+    </Table>
   );
 }
-function TripsTable({ rows }: { rows: MisTrip[] }) {
+
+function TripsTable({
+  rows,
+  isFiltered,
+}: {
+  rows: MisTrip[];
+  isFiltered?: boolean;
+}) {
   return (
-    <table className="w-full min-w-[950px] text-left text-sm">
-      <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
-        <tr>
-          <th className="p-3">Operator</th>
-          <th>Trip</th>
-          <th>Vehicle</th>
-          <th>Driver</th>
-          <th>Started</th>
-          <th>Duration</th>
-          <th>Distance</th>
-          <th>Fare</th>
-          <th>Rating</th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table className="min-w-[950px]">
+      <TableHeader>
+        <TableRow>
+          <TableHead>Operator</TableHead>
+          <TableHead>Trip ID</TableHead>
+          <TableHead>Vehicle</TableHead>
+          <TableHead>Driver</TableHead>
+          <TableHead>Started</TableHead>
+          <TableHead>Duration</TableHead>
+          <TableHead>Distance</TableHead>
+          <TableHead>Fare</TableHead>
+          <TableHead>Rating</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {rows.map((row) => (
-          <tr key={row.id} className="border-t">
-            <td className="p-3">
+          <TableRow key={row.id}>
+            <TableCell>
               <b>{row.operatorName}</b>
               <small className="block text-muted-foreground">
                 User #{row.ownerUserId}
               </small>
-            </td>
-            <td className="font-medium">{row.tripId}</td>
-            <td>{row.vehicleRegistration}</td>
-            <td>
-              {row.driverName ?? row.driverLicense}
-              <small className="block text-muted-foreground">
-                {row.driverLicense}
-              </small>
-            </td>
-            <td>{dateTime(row.startedAt)}</td>
-            <td>{row.durationMinutes} min</td>
-            <td>{Number(row.distanceKm).toFixed(2)} km</td>
-            <td>₹{Number(row.fareAmount).toFixed(2)}</td>
-            <td>
+            </TableCell>
+            <TableCell className="font-mono text-xs font-semibold">{row.tripId}</TableCell>
+            <TableCell className="font-mono text-xs">{row.vehicleRegistration}</TableCell>
+            <TableCell>
+              <span className="font-medium">{row.driverName ?? row.driverLicense}</span>
+              {row.driverName && (
+                <small className="block font-mono text-[11px] text-muted-foreground">
+                  {row.driverLicense}
+                </small>
+              )}
+            </TableCell>
+            <TableCell className="text-xs text-muted-foreground">{dateTime(row.startedAt)}</TableCell>
+            <TableCell>{row.durationMinutes} min</TableCell>
+            <TableCell>{Number(row.distanceKm).toFixed(2)} km</TableCell>
+            <TableCell className="font-semibold">₹{Number(row.fareAmount).toFixed(2)}</TableCell>
+            <TableCell>
               {row.driverRating === null
                 ? "—"
-                : Number(row.driverRating).toFixed(1)}
-            </td>
-          </tr>
+                : `★ ${Number(row.driverRating).toFixed(1)}`}
+            </TableCell>
+          </TableRow>
         ))}
-        {rows.length === 0 && <EmptyRow columns={9} />}
-      </tbody>
-    </table>
+        {rows.length === 0 && (
+          <EmptyRow
+            columns={9}
+            message={
+              isFiltered
+                ? "No trips match your active search or filters."
+                : "No records found in the selected date range."
+            }
+          />
+        )}
+      </TableBody>
+    </Table>
   );
 }
-function LicensesTable({ rows }: { rows: MisLicense[] }) {
+
+function LicensesTable({
+  rows,
+  isFiltered,
+}: {
+  rows: MisLicense[];
+  isFiltered?: boolean;
+}) {
   return (
-    <table className="w-full min-w-[780px] text-left text-sm">
-      <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
-        <tr>
-          <th className="p-3">Operator</th>
-          <th>Licence number</th>
-          <th>Issued</th>
-          <th>Valid from</th>
-          <th>Valid until</th>
-          <th>Status</th>
-          <th>Application</th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table className="min-w-[780px]">
+      <TableHeader>
+        <TableRow>
+          <TableHead>Operator</TableHead>
+          <TableHead>Licence number</TableHead>
+          <TableHead>Issued</TableHead>
+          <TableHead>Valid from</TableHead>
+          <TableHead>Valid until</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Application</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {rows.map((row) => (
-          <tr key={row.id} className="border-t">
-            <td className="p-3">
+          <TableRow key={row.id}>
+            <TableCell>
               <b>{row.operatorName}</b>
               <small className="block text-muted-foreground">
                 User #{row.holderUserId}
               </small>
-            </td>
-            <td className="font-medium">{row.licenseNumber}</td>
-            <td>{date(row.issuedOn)}</td>
-            <td>{date(row.validFrom)}</td>
-            <td>{date(row.validUntil)}</td>
-            <td>
-              <span className="rounded-full bg-muted px-2 py-1 text-xs">
+            </TableCell>
+            <TableCell className="font-mono text-xs font-semibold">{row.licenseNumber}</TableCell>
+            <TableCell>{date(row.issuedOn)}</TableCell>
+            <TableCell>{date(row.validFrom)}</TableCell>
+            <TableCell>{date(row.validUntil)}</TableCell>
+            <TableCell>
+              <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
                 {status(row.status)}
               </span>
-            </td>
-            <td className="font-mono text-xs">{row.applicationId}</td>
-          </tr>
+            </TableCell>
+            <TableCell className="font-mono text-xs text-muted-foreground">{row.applicationId}</TableCell>
+          </TableRow>
         ))}
-        {rows.length === 0 && <EmptyRow columns={7} />}
-      </tbody>
-    </table>
+        {rows.length === 0 && (
+          <EmptyRow
+            columns={7}
+            message={
+              isFiltered
+                ? "No licences match your active search or filters."
+                : "No records found in the selected date range."
+            }
+          />
+        )}
+      </TableBody>
+    </Table>
   );
 }
 
 function Pagination({
   data,
+  filteredCount,
   onPage,
 }: {
   data: MisPage<unknown>;
+  filteredCount?: number;
   onPage: (page: number) => void;
 }) {
+  const isFiltered =
+    filteredCount !== undefined && filteredCount !== data.items.length;
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-sm">
       <p className="text-muted-foreground">
-        {data.totalElements} records · page{" "}
+        {isFiltered ? (
+          <>
+            Showing{" "}
+            <span className="font-semibold text-foreground">
+              {filteredCount}
+            </span>{" "}
+            of {data.totalElements} records (filtered) · page{" "}
+          </>
+        ) : (
+          <>{data.totalElements} records · page </>
+        )}
         {data.totalPages === 0 ? 0 : data.page + 1} of {data.totalPages}
       </p>
       <div className="flex gap-2">
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           disabled={data.page === 0}
           onClick={() => onPage(data.page - 1)}
-          className="inline-flex items-center rounded-lg border px-3 py-1.5 disabled:opacity-40"
         >
           <ChevronLeft className="mr-1 h-4 w-4" />
           Previous
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           disabled={data.page + 1 >= data.totalPages}
           onClick={() => onPage(data.page + 1)}
-          className="inline-flex items-center rounded-lg border px-3 py-1.5 disabled:opacity-40"
         >
           Next
           <ChevronRight className="ml-1 h-4 w-4" />
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -294,6 +395,9 @@ export default function AdminAggregators() {
   const [to, setTo] = useState(now.toISOString().slice(0, 10));
   const [tab, setTab] = useState<DetailTab>("vehicles");
   const [page, setPage] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [evFilter, setEvFilter] = useState("ALL");
   const validRange = Boolean(from && to && from <= to);
   const summary = useQuery({
     queryKey: ["government-mis", from, to],
@@ -336,6 +440,249 @@ export default function AdminAggregators() {
   const selectTab = (next: DetailTab) => {
     setTab(next);
     setPage(0);
+    setSearchQuery("");
+    setStatusFilter("ALL");
+    setEvFilter("ALL");
+  };
+
+  const filteredVehicles = useMemo(() => {
+    const list = vehicles.data?.items ?? [];
+    return list.filter((r) => {
+      if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
+      if (evFilter === "EV" && r.electric !== true) return false;
+      if (evFilter === "NON_EV" && r.electric !== false) return false;
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        r.operatorName?.toLowerCase().includes(q) ||
+        r.registrationNumber?.toLowerCase().includes(q) ||
+        r.stateCode?.toLowerCase().includes(q) ||
+        r.category?.toLowerCase().includes(q)
+      );
+    });
+  }, [vehicles.data?.items, searchQuery, statusFilter, evFilter]);
+
+  const filteredDrivers = useMemo(() => {
+    const list = drivers.data?.items ?? [];
+    return list.filter((r) => {
+      if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        r.operatorName?.toLowerCase().includes(q) ||
+        r.driverName?.toLowerCase().includes(q) ||
+        r.licenseNumber?.toLowerCase().includes(q) ||
+        r.psvBadgeNumber?.toLowerCase().includes(q)
+      );
+    });
+  }, [drivers.data?.items, searchQuery, statusFilter]);
+
+  const filteredTrips = useMemo(() => {
+    const list = trips.data?.items ?? [];
+    return list.filter((r) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        r.operatorName?.toLowerCase().includes(q) ||
+        r.tripId?.toLowerCase().includes(q) ||
+        r.vehicleRegistration?.toLowerCase().includes(q) ||
+        r.driverName?.toLowerCase().includes(q) ||
+        r.driverLicense?.toLowerCase().includes(q)
+      );
+    });
+  }, [trips.data?.items, searchQuery]);
+
+  const filteredLicenses = useMemo(() => {
+    const list = licenses.data?.items ?? [];
+    return list.filter((r) => {
+      if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        r.operatorName?.toLowerCase().includes(q) ||
+        r.licenseNumber?.toLowerCase().includes(q) ||
+        r.applicationId?.toLowerCase().includes(q)
+      );
+    });
+  }, [licenses.data?.items, searchQuery, statusFilter]);
+
+  const availableStatuses = useMemo(() => {
+    const currentList: Array<{ status?: string }> =
+      tab === "vehicles"
+        ? (vehicles.data?.items ?? [])
+        : tab === "drivers"
+          ? (drivers.data?.items ?? [])
+          : tab === "licenses"
+            ? (licenses.data?.items ?? [])
+            : [];
+    const set = new Set<string>();
+    currentList.forEach((r) => {
+      if (r.status) set.add(r.status);
+    });
+    return Array.from(set);
+  }, [tab, vehicles.data?.items, drivers.data?.items, licenses.data?.items]);
+
+  const filteredCount =
+    tab === "vehicles"
+      ? filteredVehicles.length
+      : tab === "drivers"
+        ? filteredDrivers.length
+        : tab === "trips"
+          ? filteredTrips.length
+          : filteredLicenses.length;
+
+  const isFiltered = Boolean(
+    searchQuery || statusFilter !== "ALL" || evFilter !== "ALL"
+  );
+
+  const searchPlaceholder =
+    tab === "vehicles"
+      ? "Search vehicles by operator, reg number, state, category…"
+      : tab === "drivers"
+        ? "Search drivers by operator, name, license, PSV badge…"
+        : tab === "trips"
+          ? "Search trips by ID, vehicle reg, driver, operator…"
+          : "Search licences by operator, licence no, application ID…";
+
+  const handleExportCsv = () => {
+    const sanitize = (val: unknown) => {
+      if (val === null || val === undefined) return '""';
+      const s = String(val).replace(/"/g, '""');
+      return `"${s}"`;
+    };
+
+    let filename = `mis-${tab}-${from}-to-${to}`;
+    let headers: string[] = [];
+    let rows: (string | number | null | undefined)[][] = [];
+
+    if (tab === "vehicles") {
+      headers = [
+        "Operator",
+        "Owner User ID",
+        "Registration",
+        "State",
+        "Category",
+        "Electric",
+        "Status",
+        "Rejection Reason",
+        "Registration Valid Until",
+        "PUC Valid Until",
+        "Insurance Valid Until",
+        "Fitness Valid Until",
+        "Tax Valid Until",
+        "Permit Valid Until",
+        "Challan Clear",
+        "Last Activity",
+      ];
+      rows = filteredVehicles.map((r) => [
+        r.operatorName,
+        r.ownerUserId,
+        r.registrationNumber,
+        r.stateCode ?? "",
+        r.category,
+        r.electric === null ? "Unknown" : r.electric ? "Electric" : "Non-EV",
+        r.status,
+        r.rejectionReason ?? "",
+        r.registrationValidUntil ?? "",
+        r.pucValidUntil ?? "",
+        r.insuranceValidUntil ?? "",
+        r.fitnessValidUntil ?? "",
+        r.taxValidUntil ?? "",
+        r.permitValidUntil ?? "",
+        r.challanClear === null ? "Not verified" : r.challanClear ? "Clear" : "Pending",
+        r.updatedAt ?? r.createdAt,
+      ]);
+    } else if (tab === "drivers") {
+      headers = [
+        "Operator",
+        "Owner User ID",
+        "Driver Name",
+        "License Number",
+        "License Valid Until",
+        "PSV Badge Number",
+        "PSV Badge Valid Until",
+        "Status",
+        "Rejection Reason",
+        "Last Activity",
+      ];
+      rows = filteredDrivers.map((r) => [
+        r.operatorName,
+        r.ownerUserId,
+        r.driverName ?? "",
+        r.licenseNumber,
+        r.licenseValidUntil ?? "",
+        r.psvBadgeNumber ?? "",
+        r.psvBadgeValidUntil ?? "",
+        r.status,
+        r.rejectionReason ?? "",
+        r.updatedAt ?? r.createdAt,
+      ]);
+    } else if (tab === "trips") {
+      headers = [
+        "Operator",
+        "Trip ID",
+        "Vehicle Registration",
+        "Driver Name",
+        "Driver License",
+        "Started At",
+        "Ended At",
+        "Duration Minutes",
+        "Distance Km",
+        "Fare Amount",
+        "Driver Rating",
+      ];
+      rows = filteredTrips.map((r) => [
+        r.operatorName,
+        r.tripId,
+        r.vehicleRegistration,
+        r.driverName ?? "",
+        r.driverLicense,
+        r.startedAt,
+        r.endedAt,
+        r.durationMinutes,
+        r.distanceKm,
+        r.fareAmount,
+        r.driverRating ?? "",
+      ]);
+    } else if (tab === "licenses") {
+      headers = [
+        "Operator",
+        "Holder User ID",
+        "Licence Number",
+        "Issued On",
+        "Valid From",
+        "Valid Until",
+        "Status",
+        "Application ID",
+      ];
+      rows = filteredLicenses.map((r) => [
+        r.operatorName,
+        r.holderUserId,
+        r.licenseNumber,
+        r.issuedOn,
+        r.validFrom,
+        r.validUntil,
+        r.status,
+        r.applicationId,
+      ]);
+    }
+
+    const csvContent = [
+      headers.map(sanitize).join(","),
+      ...rows.map((row) => row.map(sanitize).join(",")),
+    ].join("\r\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${filename}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
   const error = summary.error ?? activeQuery.error;
   return (
@@ -409,45 +756,134 @@ export default function AdminAggregators() {
         />
       </div>
       <section className="mt-7 overflow-hidden rounded-xl border bg-card">
-        <div className="flex overflow-x-auto border-b p-2">
-          {(
-            [
-              ["vehicles", "Vehicles"],
-              ["drivers", "Drivers"],
-              ["trips", "Trips"],
-              ["licenses", "Licences"],
-            ] as Array<[DetailTab, string]>
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => selectTab(value)}
-              className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold ${tab === value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
-            >
-              {label}
-            </button>
-          ))}
+        {/* Tab switcher + Export CSV */}
+        <div className="flex flex-wrap items-center justify-between border-b bg-muted/20 p-2.5 gap-2">
+          <div className="flex overflow-x-auto gap-1">
+            {(
+              [
+                ["vehicles", "Vehicles"],
+                ["drivers", "Drivers"],
+                ["trips", "Trips"],
+                ["licenses", "Licences"],
+              ] as Array<[DetailTab, string]>
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => selectTab(value)}
+                className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                  tab === value
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCsv}
+            disabled={filteredCount === 0}
+            className="h-8 gap-1.5 text-xs font-medium"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export CSV
+          </Button>
         </div>
+
+        {/* Search & Filter Toolbar */}
+        <div className="flex flex-col gap-2.5 border-b p-3 sm:flex-row sm:items-center sm:justify-between bg-card">
+          <div className="relative flex-1 sm:max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder={searchPlaceholder}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-9 pl-9 pr-8 text-xs sm:text-sm"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {availableStatuses.length > 0 && (
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-3 py-1 text-xs font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="ALL">All Statuses</option>
+                {availableStatuses.map((s) => (
+                  <option key={s} value={s}>
+                    {status(s)}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {tab === "vehicles" && (
+              <select
+                value={evFilter}
+                onChange={(e) => setEvFilter(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-3 py-1 text-xs font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="ALL">All Fuel Types</option>
+                <option value="EV">Electric Only</option>
+                <option value="NON_EV">Non-EV</option>
+              </select>
+            )}
+
+            {isFiltered && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchQuery("");
+                  setStatusFilter("ALL");
+                  setEvFilter("ALL");
+                }}
+                className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Reset
+              </Button>
+            )}
+          </div>
+        </div>
+
         {activeQuery.isLoading ? (
           <div className="p-10 text-center text-sm text-muted-foreground">
             Loading detailed records…
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div>
             {tab === "vehicles" && (
-              <VehiclesTable rows={vehicles.data?.items ?? []} />
+              <VehiclesTable rows={filteredVehicles} isFiltered={isFiltered} />
             )}
             {tab === "drivers" && (
-              <DriversTable rows={drivers.data?.items ?? []} />
+              <DriversTable rows={filteredDrivers} isFiltered={isFiltered} />
             )}
-            {tab === "trips" && <TripsTable rows={trips.data?.items ?? []} />}
+            {tab === "trips" && (
+              <TripsTable rows={filteredTrips} isFiltered={isFiltered} />
+            )}
             {tab === "licenses" && (
-              <LicensesTable rows={licenses.data?.items ?? []} />
+              <LicensesTable rows={filteredLicenses} isFiltered={isFiltered} />
             )}
           </div>
         )}
         {activeQuery.data && (
           <Pagination
             data={activeQuery.data as MisPage<unknown>}
+            filteredCount={filteredCount}
             onPage={setPage}
           />
         )}

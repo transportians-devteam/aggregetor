@@ -24,6 +24,7 @@ import Notifications from "./pages/Notifications";
 import Help from "./pages/Help";
 import Admin from "./pages/Admin";
 import AdminApplications from "./pages/AdminApplications";
+import AdminApplicationDetail from "./pages/AdminApplicationDetail";
 import AdminEVMonitor from "./pages/AdminEVMonitor";
 import AdminPenalties from "./pages/AdminPenalties";
 import AdminAggregators from "./pages/AdminAggregators";
@@ -46,7 +47,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
@@ -182,6 +183,16 @@ const App = () => (
                   allowedRoles={["officer", "appellate_officer", "admin"]}
                 >
                   <AdminApplications />
+                </RoleProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/applications/:id"
+              element={
+                <RoleProtectedRoute
+                  allowedRoles={["officer", "appellate_officer", "admin"]}
+                >
+                  <AdminApplicationDetail />
                 </RoleProtectedRoute>
               }
             />
